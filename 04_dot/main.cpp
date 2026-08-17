@@ -17,7 +17,17 @@ void RenderScene(){
 
     glVertexAttribPointer(0,3,GL_FLOAT,GL_FALSE,0,0);
 
-    glDrawArrays(GL_POINTS,0,N);
+    static int j = 0;
+    static int step = 2;
+
+    glDrawArrays(GL_POINTS,0,j);
+    
+    j = j + step;
+
+    if(j >= N || j <= 0){
+        step = -step;
+    }
+    // glDrawArrays(GL_POINTS,0,N);
 
     glDisableVertexAttribArray(0);
 
@@ -33,8 +43,20 @@ void CreateVertexBuffer(){
     while(i < N){
 
         static float x = 0.0f, y = 0.0f, z = 0.0f;
+        static float step = 0.001f;
 
-        x = i * 0.001f;
+        if(i < N/4){
+            x += step;
+        }
+        else if(i >= N/4 && i < N/2){
+            y -= step;
+        }
+        else if(i >= N/2 && i <(3*N/4)){
+            x -= step;
+        }
+        else{
+            y += step;
+        }
 
         Vertices[i] = Vector3f(x,y,z);
 
@@ -52,7 +74,7 @@ int main(int argc, char**argv){
     glutInit(&argc, argv);
     glutInitDisplayMode(GLUT_DOUBLE|GLUT_RGBA);
 
-    int width = 960;
+    int width = 540;
     int height = 540;
 
     int x = 0;
