@@ -3,18 +3,37 @@
 #include <GL/freeglut.h>
 #include "ogldev_math_3d.h"
 
+GLuint VBO;
+
 static void RenderScene(){
 
     static GLclampf red = 0.0f, green = 0.0f, blue = 0.0f, alpha = 0.0f;
     glClearColor(red, green, blue, alpha);
 
     glClear(GL_COLOR_BUFFER_BIT);
+
+    glBindBuffer(GL_ARRAY_BUFFER,VBO);
+    
+    glEnableVertexAttribArray(0);
+    glVertexAttribPointer(0,3,GL_FLOAT,GL_FALSE,0,0);
+    // attribute index, # of elements, type, normalise to 0 to 1, stride, offset pointer
+
+    glDrawArrays(GL_POINTS,0,2);
+    // , index of first vertex, # of vertices to process
+
+    glDisableVertexAttribArray(0);
+
     glFlush();
 }
 
 static void CreateVertexBuffer(){
-    Vector3f Vertices[1];
-    Vertices[0] = Vector3f();
+    Vector3f Vertices[2];
+    Vertices[0] = Vector3f(0.0f,0.0f,0.0f);
+    Vertices[1] = Vector3f(0.2f,0.0f,0.0f);
+
+    glGenBuffers(1,&VBO);
+    glBindBuffer(GL_ARRAY_BUFFER,VBO);
+    glBufferData(GL_ARRAY_BUFFER, sizeof(Vertices),Vertices,GL_STATIC_DRAW);
 }
 
 
