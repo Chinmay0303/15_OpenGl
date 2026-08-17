@@ -18,15 +18,24 @@ void RenderScene(){
     glVertexAttribPointer(0,3,GL_FLOAT,GL_FALSE,0,0);
 
     static int j = 0;
-    static int step = 2;
+    int step = 1;
 
-    glDrawArrays(GL_POINTS,0,j);
+    int start = std::max(0,j-N);
+    int end = std::min(N,j);
+
+    // std::cout << start << end << "\n";
+
+    glDrawArrays(GL_POINTS,start,end);
     
     j = j + step;
 
-    if(j >= N || j <= 0){
-        step = -step;
+    if(start > end){
+        j = 0;
     }
+
+    // if(j >= N || j <= 0){
+    //     step = -step;
+    // }
     // glDrawArrays(GL_POINTS,0,N);
 
     glDisableVertexAttribArray(0);
@@ -40,11 +49,10 @@ void CreateVertexBuffer(){
     Vector3f Vertices[N];
 
     int i = 0;
+    float x = 0.0f, y = 0.0f, z = 0.0f;
+    float step = 0.001f;
+
     while(i < N){
-
-        static float x = 0.0f, y = 0.0f, z = 0.0f;
-        static float step = 0.001f;
-
         if(i < N/4){
             x += step;
         }
