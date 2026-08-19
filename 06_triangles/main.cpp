@@ -17,7 +17,7 @@ void RenderSceneCB(){
     
     glVertexAttribPointer(0,3,GL_FLOAT,GL_FALSE,0,0);
 
-    glDrawArrays(GL_TRIANGLES,0,6);
+    glDrawArrays(GL_TRIANGLES,0,9);
 
     glDisableVertexAttribArray(0);
 
@@ -28,19 +28,23 @@ void RenderSceneCB(){
 
 void CreateVertexBuffer(){
 
-    Vector3f Vertices[6];
+    Vector3f Vertices[9];
 
     Vector3f p0 = Vector3f(-0.25f,-0.25f,0.0f); // bottom left
-    Vector3f p1 = Vector3f(-0.25f,0.25f,0.0f); // top left
-    Vector3f p2 = Vector3f(0.25f,0.25f,0.0f); // top right
-    Vector3f p3 = Vector3f(0.25f,-0.25f,0.0f); // bottom right
+    Vector3f p1 = Vector3f(-0.25f,0.0f,0.0f); // top left
+    Vector3f p2 = Vector3f(0.0f,0.25f,0.0f); // top
+    Vector3f p3 = Vector3f(0.25f,0.0f,0.0f); // top right
+    Vector3f p4 = Vector3f(0.25f,-0.25f,0.0f); // bottom right
 
-    Vertices[0] = p0;
-    Vertices[1] = p1;
-    Vertices[2] = p2;
-    Vertices[3] = p0;
-    Vertices[4] = p2;
+    Vertices[0] = p1;
+    Vertices[1] = p2;
+    Vertices[2] = p3;
+    Vertices[3] = p1;
+    Vertices[4] = p0;
     Vertices[5] = p3;
+    Vertices[6] = p0;
+    Vertices[7] = p3;
+    Vertices[8] = p4;
 
     glGenBuffers(1, &VBO);
     glBindBuffer(GL_ARRAY_BUFFER,VBO);
@@ -61,7 +65,7 @@ int main(int argc, char ** argv){
     glutInitWindowPosition(x,y);
     glutInitWindowSize(width,height);
 
-    int window_id = glutCreateWindow("Triangle");
+    int window_id = glutCreateWindow("Triangles");
 
     std::cout << "window_id : " << window_id << "\n";
 
