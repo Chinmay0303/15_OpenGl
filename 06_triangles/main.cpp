@@ -17,7 +17,11 @@ void RenderSceneCB(){
     
     glVertexAttribPointer(0,3,GL_FLOAT,GL_FALSE,0,0);
 
-    glDrawArrays(GL_TRIANGLES,0,9);
+    // glDrawArrays(GL_TRIANGLES,0,3);
+    // glDrawArrays(GL_TRIANGLES,3,3);
+    // glDrawArrays(GL_TRIANGLES,6,3);
+    // glDrawArrays(GL_TRIANGLES,9,3);
+    glDrawArrays(GL_TRIANGLES,0,12);
 
     glDisableVertexAttribArray(0);
 
@@ -28,23 +32,36 @@ void RenderSceneCB(){
 
 void CreateVertexBuffer(){
 
-    Vector3f Vertices[9];
+    Vector3f Vertices[12];
 
     Vector3f p0 = Vector3f(-0.25f,-0.25f,0.0f); // bottom left
     Vector3f p1 = Vector3f(-0.25f,0.0f,0.0f); // top left
     Vector3f p2 = Vector3f(0.0f,0.25f,0.0f); // top
     Vector3f p3 = Vector3f(0.25f,0.0f,0.0f); // top right
     Vector3f p4 = Vector3f(0.25f,-0.25f,0.0f); // bottom right
+    Vector3f p5 = Vector3f(0.0f,-0.5f,0.0f); // bottom
+    Vector3f p6 = Vector3f(0.0f,-0.125f,0.0f); // middle
 
+    // triangle 1
     Vertices[0] = p1;
     Vertices[1] = p2;
     Vertices[2] = p3;
-    Vertices[3] = p1;
-    Vertices[4] = p0;
-    Vertices[5] = p3;
-    Vertices[6] = p0;
-    Vertices[7] = p3;
-    Vertices[8] = p4;
+
+    // triangle 2
+    Vertices[3] = p0;
+    Vertices[4] = p5;
+    Vertices[5] = p4;
+    
+    // triangle 3
+    Vertices[6] = p1;
+    Vertices[7] = p0;
+    Vertices[8] = p6;
+
+    // triangle 4
+    Vertices[9] = p3;
+    Vertices[10] = p4;
+    Vertices[11] = p6;
+
 
     glGenBuffers(1, &VBO);
     glBindBuffer(GL_ARRAY_BUFFER,VBO);
