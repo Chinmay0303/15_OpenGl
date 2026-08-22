@@ -121,7 +121,7 @@ static void CompileShaders()
         exit(1);
     }
     else{
-        cout << "gScaleLocation: " << gScaleLocation << "\n";
+        std::cout << "gScaleLocation: " << gScaleLocation << "\n";
     }
 
     glValidateProgram(ShaderProgram);
@@ -151,7 +151,7 @@ int main(int argc, char** argv){
 
     int window_id = glutCreateWindow("Uniforms");
 
-    cout << "window_id : " << window_id << "\n";
+    std::cout << "window_id : " << window_id << "\n";
 
     GLenum res = glewInit();
 
