@@ -5,7 +5,7 @@
 
 GLuint VBO;
 GLuint gWorldLocation;
-int Lines = 180;
+int Lines = 360;
 int N = 2 * Lines;
 
 void CreateVertexBuffer(){
@@ -30,30 +30,14 @@ void CreateVertexBuffer(){
         AngleInDegrees += Delta;
         float AngleInRadians = 2.0f * M_PI * AngleInDegrees/360.0f;
 
-        // float newX = cosf(AngleInRadians)*p0.x - sinf(AngleInRadians)*p0.y;
-        // float newY = sinf(AngleInRadians)*p0.x + cosf(AngleInRadians)*p0.y;
-        // float newZ = p0.z;
-
-        // Vertices[i] = Vector3f(newX,newY,newZ);
-
         // to rotate around z axis
         RotateDot.m[0][0] = cosf(AngleInRadians); RotateDot.m[0][1] = -sinf(AngleInRadians); RotateDot.m[0][2] = 0.0f;
         RotateDot.m[1][0] = sinf(AngleInRadians); RotateDot.m[1][1] = cosf(AngleInRadians); RotateDot.m[1][2] = 0.0f; 
         RotateDot.m[2][0] = 0.0f; RotateDot.m[2][1] = 0.0f; RotateDot.m[2][2] = 1.0f;
 
-        // Rotate.m[0][0] = cosf(AngleInRadians); Rotate.m[0][1] = -sin(AngleInRadians); Rotate.m[0][2] = 0.0f; Rotate.m[0][3] = 0.0f; 
-        // Rotate.m[1][0] = sinf(AngleInRadians); Rotate.m[1][1] = cosf(AngleInRadians); Rotate.m[1][2] = 0.0f; Rotate.m[1][3] = 0.0f; 
-        // Rotate.m[2][0] = 0.0f; Rotate.m[2][1] = 0.0f; Rotate.m[2][2] = 1.0f; Rotate.m[2][3] = 0.0f; 
-        // Rotate.m[3][0] = 0.0f; Rotate.m[3][1] = 0.0f; Rotate.m[3][2] = 0.0f; Rotate.m[3][3] = 1.0f; 
-
-        Vertices[i] = p0;
+        Vertices[i] = p0; // first vertex: origin
         Vector3f p2 = RotateDot * p1;
-        Vertices[i+1] = p2;
-
-        // std::cout << "Angle: " << AngleInDegrees << ", p2: "
-        // << p2.x << ","
-        // << p2.y << ","
-        // << p2.z << "\n";
+        Vertices[i+1] = p2; // second vertex: rotated vertex
 
         i += 2;
     }
@@ -87,27 +71,6 @@ void RenderSceneCB(){
     glBindBuffer(GL_ARRAY_BUFFER,VBO);
     glEnableVertexAttribArray(0);
     glVertexAttribPointer(0,3,GL_FLOAT,GL_FALSE,0,0);
-
-    // static int j = 0;
-    // int step = 1;
-
-    // int start = std::max(0,j-N);
-    // int end = std::min(N,j);
-    // int count = end - start;
-
-    // if(count > 0)
-    // {
-    //     glDrawArrays(GL_POINTS,start,count);
-    // }
-    // else{
-    //     std::cout << "count: " << count << ", start: " << start << ", end: " << end << "\n";
-    // }
-
-    // j = j + step;
-
-    // if(j > 2*N){
-    //     j = 0;
-    // }
 
     static int lines = 0;
     int step = 2;

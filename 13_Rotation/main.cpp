@@ -15,6 +15,8 @@ void CreateVertexBuffer(){
     int i = 0;
     float Delta = 360.0f/N;
     float AngleInDegrees = 0.0f;
+
+    std::cout << "Delta: " << Delta << "\n";
     
     Matrix3f RotateDot;
 
@@ -22,21 +24,10 @@ void CreateVertexBuffer(){
 
         float AngleInRadians = 2.0f * M_PI * AngleInDegrees/360.0f;
 
-        // float newX = cosf(AngleInRadians)*p0.x - sinf(AngleInRadians)*p0.y;
-        // float newY = sinf(AngleInRadians)*p0.x + cosf(AngleInRadians)*p0.y;
-        // float newZ = p0.z;
-
-        // Vertices[i] = Vector3f(newX,newY,newZ);
-
         // to rotate around z axis
         RotateDot.m[0][0] = cosf(AngleInRadians); RotateDot.m[0][1] = -sinf(AngleInRadians); RotateDot.m[0][2] = 0.0f;
         RotateDot.m[1][0] = sinf(AngleInRadians); RotateDot.m[1][1] = cosf(AngleInRadians); RotateDot.m[1][2] = 0.0f; 
         RotateDot.m[2][0] = 0.0f; RotateDot.m[2][1] = 0.0f; RotateDot.m[2][2] = 1.0f;
-
-        // Rotate.m[0][0] = cosf(AngleInRadians); Rotate.m[0][1] = -sin(AngleInRadians); Rotate.m[0][2] = 0.0f; Rotate.m[0][3] = 0.0f; 
-        // Rotate.m[1][0] = sinf(AngleInRadians); Rotate.m[1][1] = cosf(AngleInRadians); Rotate.m[1][2] = 0.0f; Rotate.m[1][3] = 0.0f; 
-        // Rotate.m[2][0] = 0.0f; Rotate.m[2][1] = 0.0f; Rotate.m[2][2] = 1.0f; Rotate.m[2][3] = 0.0f; 
-        // Rotate.m[3][0] = 0.0f; Rotate.m[3][1] = 0.0f; Rotate.m[3][2] = 0.0f; Rotate.m[3][3] = 1.0f; 
 
         Vertices[i] = RotateDot * p0;
 
