@@ -24,7 +24,7 @@ void CreateVertexBuffer(){
     Vertices[6] = p3;
     Vertices[7] = p0;
 
-    glCreateBuffers(1,&VBO);
+    glGenBuffers(1,&VBO);
     glBindBuffer(GL_ARRAY_BUFFER,VBO);
     glBufferData(GL_ARRAY_BUFFER,sizeof(Vertices),Vertices,GL_STATIC_DRAW);
 }
