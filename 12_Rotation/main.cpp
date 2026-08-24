@@ -28,19 +28,20 @@ void RenderSceneCB(){
     glClear(GL_COLOR_BUFFER_BIT);
 
     static float AngleInDegrees = 0.0f;
-    static float Delta = 0.5;
+    static float Delta = 0.5f;
     float AngleInRadians = 2 * M_PI * AngleInDegrees/360.0f;
 
     Matrix4f Rotate;
 
-    Rotate.m[0][0] = cosf(AngleInRadians); Rotate.m[0][1] = -sinf(AngleInRadians); Rotate.m[0][2] = 0.0f; Rotate.m[0][3] = 0.0f; 
-    Rotate.m[1][0] = sinf(AngleInRadians); Rotate.m[1][1] = cosf(AngleInRadians); Rotate.m[1][2] = 0.0f; Rotate.m[1][3] = 0.0f; 
-    Rotate.m[2][0] = 0.0f; Rotate.m[2][1] = 0.0f; Rotate.m[2][2] = 1.0f; Rotate.m[2][3] = 0.0f; 
+    // to rotate around x axis
+    Rotate.m[0][0] = 1.0f; Rotate.m[0][1] = 0.0f; Rotate.m[0][2] = 0.0f; Rotate.m[0][3] = 0.0f; 
+    Rotate.m[1][0] = 0.0f; Rotate.m[1][1] = cosf(AngleInRadians); Rotate.m[1][2] = -sinf(AngleInRadians); Rotate.m[1][3] = 0.0f; 
+    Rotate.m[2][0] = 0.0f; Rotate.m[2][1] = sinf(AngleInRadians); Rotate.m[2][2] = cosf(AngleInRadians); Rotate.m[2][3] = 0.0f; 
     Rotate.m[3][0] = 0.0f; Rotate.m[3][1] = 0.0f; Rotate.m[3][2] = 0.0f; Rotate.m[3][3] = 1.0f; 
 
     glUniformMatrix4fv(gRotateLocation,1,GL_TRUE,&Rotate.m[0][0]);
 
-    std::cout << AngleInRadians << "\n";
+    // std::cout << AngleInRadians << "\n";
 
     AngleInDegrees += Delta;
 
@@ -131,7 +132,7 @@ static void CompileShaders()
 
     gRotateLocation = glGetUniformLocation(ShaderProgram, "gRotate");
     if (gRotateLocation == -1) {
-        printf("Error getting uniform location of 'gScale'\n");
+        printf("Error getting uniform location of 'gRotate'\n");
         exit(1);
     }
     else{
