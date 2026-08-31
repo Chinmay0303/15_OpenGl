@@ -3,6 +3,9 @@
 #include <GL/freeglut.h>
 #include "ogldev_math_3d.h"
 
+#define WINDOW_WIDTH 960
+#define WINDOW_HEIGHT 540
+
 GLuint VBO;
 GLuint IBO;
 GLuint gWorldLocation;
@@ -10,7 +13,7 @@ GLuint gWorldLocation;
 float scale = 1.0f;
 float deltaScale = 0.0025f;
 
-float location = 1.5f;
+float location = 2.0f;
 float deltaLoc = 0.005f;
 
 float AngleZInDegrees = 0.0f;
@@ -187,11 +190,19 @@ static Matrix4f RotateYMatrix(){
 static Matrix4f ProjectionMatrix(){
     float HalfFovInRadians = (M_PI / 360.0f) * FovInDegrees; 
     float tanHalfFOV = tanf(HalfFovInRadians);
-    float inv = 1.0f/tanHalfFOV;
+    float d = 1.0f/tanHalfFOV;
 
-    Matrix4f P(inv,  0.0f, 0.0f, 0.0f,
-                0.0f, inv, 0.0f, 0.0f,
-                0.0f, 0.0f, 1.0f, 0.0f,
+    float ar = (float)WINDOW_WIDTH / (float)WINDOW_HEIGHT;
+
+    float NearZ = 1.0f;
+    float FarZ = 10.0f;
+
+    float A = (FarZ + NearZ)/(FarZ - NearZ);
+    float B = -2 *(FarZ*NearZ)/(FarZ - NearZ);
+
+    Matrix4f P(d/ar,  0.0f, 0.0f, 0.0f,
+                0.0f, d, 0.0f, 0.0f,
+                0.0f, 0.0f, A, B,
                 0.0f, 0.0f, 1.0f, 0.0f
     );
 
@@ -338,13 +349,13 @@ int main(int argc, char** argv){
     glutInit(&argc, argv);
     glutInitDisplayMode(GLUT_DOUBLE | GLUT_RGBA | GLUT_DEPTH);
 
-    int width = 960;
-    int height = 960;
+    // int width = 960;
+    // int height = 960;
 
     int x = 0;
     int y = 0;
 
-    glutInitWindowSize(width,height);
+    glutInitWindowSize(WINDOW_WIDTH,WINDOW_HEIGHT);
     glutInitWindowPosition(x,y);
 
     int window_id = glutCreateWindow("Uniforms");
