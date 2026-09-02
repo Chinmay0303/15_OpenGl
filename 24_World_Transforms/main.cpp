@@ -3,6 +3,8 @@
 #include <GL/freeglut.h>
 #include "ogldev_math_3d.h"
 #include "world.h"
+#include "view.h"
+#include "project.h"
 
 #define WINDOW_WIDTH 960
 #define WINDOW_HEIGHT 540
@@ -12,6 +14,13 @@ GLuint IBO;
 GLuint gWVPLocation;
 
 World CubeWorld;
+View CubeView;
+
+float FOV = 45.0f;
+float zNear = 1.0f;
+float zFar = 10.0f;
+
+Project CubeProject(FOV,WINDOW_WIDTH,WINDOW_HEIGHT,zNear,zFar);
 
 struct Vertex {
     Vector3f pos;
@@ -72,7 +81,7 @@ static void CreateIndexBuffer()
 
 void RenderSceneCB(){
 
-    glClear(GL_COLOR_BUFFER_BIT);
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
     static float dx = 0.01f;
     float pos_x = CubeWorld.GetPosition().x;
@@ -88,20 +97,21 @@ void RenderSceneCB(){
         step = -1.0f * step;
     }
 
-    // CubeWorld.SetPosition(0.0f,0.0f,0.5f);
-    CubeWorld.SetScale(scale_x,1.0f,1.0f);
+    // CubeWorld.SetScale(scale_x,1.0f,1.0f);
     CubeWorld.Translate(dx,0.0f,0.0f);
     CubeWorld.Rotate(0.0f, 0.5, 0.0f);
     Matrix4f World = CubeWorld.GetMatrix();
 
     scale_x += step;
 
-    // Matrix4f View = GameCamera.GetMatrix();
+    Matrix4f View = CubeView.GetMatrix();
 
-    // Matrix4f Projection;
+    Matrix4f Projection = CubeProject.GetMatrix();
     // Projection.InitPersProjTransform(persProjInfo);
 
-    Matrix4f WVP = World;
+    Matrix4f WVP = Projection * View * World;
+    // Matrix4f WVP = View * World;
+    // Matrix4f WVP = World;
 
     glUniformMatrix4fv(gWVPLocation, 1, GL_TRUE, &WVP.m[0][0]);
 
@@ -223,6 +233,13 @@ int main(int argc, char** argv){
 
     int x = 0;
     int y = 0;
+ 
+    CubeWorld.SetPosition(0.0f,0.0f,-2.0f);
+    CubeWorld.SetScale(1.0f,1.0f,1.0f);
+
+    CubeView.SetPosition(0.0f, 0.0f, 0.0f);
+    CubeView.SetForward(0.0f, 0.0f, -1.0f);
+    CubeView.SetUp(0.0f, 1.0f, 0.0f);
 
     glutInitWindowSize(WINDOW_WIDTH,WINDOW_HEIGHT);
     glutInitWindowPosition(x,y);
@@ -231,18 +248,21 @@ int main(int argc, char** argv){
 
     std::cout << "window_id : " << window_id << "\n";
 
-    // glEnable(GL_DEPTH_TEST);
     GLenum res = glewInit();
-
+    
     if(res != GLEW_OK){
         std::cout << "Error: " << glewGetErrorString(res) << "\n";
         return 1;
     }
     else
-        std::cout << "glewInit " << res << "\n";
+    std::cout << "glewInit " << res << "\n";
+    
+    glEnable(GL_DEPTH_TEST);
+
+    // glDisable(GL_CULL_FACE);
 
     glEnable(GL_CULL_FACE);
-    glFrontFace(GL_CW);
+    glFrontFace(GL_CCW);
     glCullFace(GL_BACK);
 
     CreateVertexBuffer();
