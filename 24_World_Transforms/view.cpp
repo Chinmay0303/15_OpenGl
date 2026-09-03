@@ -1,4 +1,5 @@
 #include "view.h"
+#include <GL/freeglut.h>
 
 void View::SetPosition(float x, float y, float z){
     pos_vector.x = x;
@@ -96,4 +97,61 @@ Vector3f View::Cross3(Vector3f vector_1, Vector3f vector_2){
     cross_product_vector.z = x1*y2 - x2*y1;
 
     return cross_product_vector;
+}
+
+void View::OnKeyboard(unsigned char key){
+    switch(key){
+
+        case 'i':
+        {
+            Vector3f forward = Normalize(forward_vector);
+
+            forward *= speed;
+            pos_vector += forward;
+        }
+        break;
+
+        case 'k':
+        {
+            Vector3f forward = Normalize(forward_vector);
+
+            forward *= speed;
+            pos_vector -= forward;
+        }
+        break;
+
+        case 'l':
+        {
+            Vector3f forward = Normalize(forward_vector);
+            Vector3f up = Normalize(up_vector);
+            Vector3f right = Normalize(Cross3(forward, up));
+
+            pos_vector += right * speed;
+        }
+            break;
+
+        case 'j':
+        {
+            Vector3f forward = Normalize(forward_vector);
+            Vector3f up = Normalize(up_vector);
+            Vector3f right = Normalize(Cross3(forward, up));
+
+            pos_vector -= right * speed;
+        }
+            break;
+
+        case 'u':
+        {
+            Vector3f up = Normalize(up_vector);
+            pos_vector += up * speed;
+        }
+        break;
+
+        case 'o':
+        {
+            Vector3f up = Normalize(up_vector);
+            pos_vector -= up * speed;
+        }
+        break;
+    }
 }

@@ -16,6 +16,8 @@ class View{
         void SetForward(float x, float y, float z);
         void SetUp(float x, float y, float z);
 
+        void OnKeyboard(unsigned char key);
+
         Matrix4f GetMatrix();
 
     private:
@@ -23,6 +25,8 @@ class View{
 
         Vector3f forward_vector;
         Vector3f up_vector;
+
+        float speed = 0.5f;
 
         // camera is at origin, looking in -z direction, and its orientation is +y axis
 

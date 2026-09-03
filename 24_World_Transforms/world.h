@@ -14,6 +14,9 @@ class World {
         void Translate(float dx, float dy, float dz);
         void Rotate(float dx, float dy, float dz);
 
+        void ResetTransform();
+        void ScaleUniform(float factor);
+
         Vector3f GetPosition();
 
         Matrix4f GetMatrix();

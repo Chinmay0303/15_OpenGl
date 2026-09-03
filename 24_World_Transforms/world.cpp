@@ -114,3 +114,21 @@ Vector3f World::GetPosition(){
 
     return position;
 }
+
+void World::ScaleUniform(float factor){
+    
+    if(factor <= 0.0f){
+        return;
+    }
+
+    scale_vector.x *= factor;
+    scale_vector.y *= factor;
+    scale_vector.z *= factor;
+}
+
+void World::ResetTransform(){
+
+    pos_vector = Vector3f(0.0f,0.0f,-2.0f);
+    scale_vector = Vector3f(1.0f,1.0f,1.0f);
+    rot_vector = Vector3f(0.0f,0.0f,0.0f);
+}

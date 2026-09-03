@@ -6,8 +6,8 @@
 #include "view.h"
 #include "project.h"
 
-#define WINDOW_WIDTH 960
-#define WINDOW_HEIGHT 540
+#define WINDOW_WIDTH 1920
+#define WINDOW_HEIGHT 1080
 
 GLuint VBO;
 GLuint IBO;
@@ -98,8 +98,8 @@ void RenderSceneCB(){
     }
 
     // CubeWorld.SetScale(scale_x,1.0f,1.0f);
-    CubeWorld.Translate(dx,0.0f,0.0f);
-    CubeWorld.Rotate(0.0f, 0.5, 0.0f);
+    // CubeWorld.Translate(dx,0.0f,0.0f);
+    // CubeWorld.Rotate(0.0f, 0.5, 0.0f);
     Matrix4f World = CubeWorld.GetMatrix();
 
     scale_x += step;
@@ -128,6 +128,92 @@ void RenderSceneCB(){
     glDisableVertexAttribArray(0);
     glDisableVertexAttribArray(1);
     glutSwapBuffers();
+    glutPostRedisplay();
+}
+
+static void KeyboardCB(unsigned char key, int mouse_x, int mouse_y)
+{
+    float rotationStep = 5.0f;
+    float scaleFactor = 1.1f;
+
+    switch (key) {
+
+        case '1':
+            CubeWorld.Rotate(rotationStep, 0.0f, 0.0f);
+            break;
+
+        case '2':
+            CubeWorld.Rotate(-rotationStep, 0.0f, 0.0f);
+            break;
+
+        case '3':
+            CubeWorld.Rotate(0.0f, rotationStep, 0.0f);
+            break;
+
+        case '4':
+            CubeWorld.Rotate(0.0f, -rotationStep, 0.0f);
+            break;
+
+        case '5':
+            CubeWorld.Rotate(0.0f, 0.0f, rotationStep);
+            break;
+
+        case '6':
+            CubeWorld.Rotate(0.0f, 0.0f, -rotationStep);
+            break;
+
+        case '-':
+        case '_':
+            {
+                CubeWorld.ScaleUniform(1.0f/scaleFactor);
+            }
+            break;
+
+        case '+':
+        case '=':
+            {
+                CubeWorld.ScaleUniform(scaleFactor);
+            }
+            break;
+
+        // Reset model transform.
+        case '0':
+            {
+                CubeWorld.ResetTransform();
+            }
+            break;
+
+        default:
+        {
+            CubeView.OnKeyboard(key);
+            glutPostRedisplay();
+        }
+    }
+}
+
+
+static void SpecialKeyboardCB(int key, int mouse_x, int mouse_y)
+{
+    float movement = 0.1f;
+
+    switch (key) {
+        case GLUT_KEY_LEFT:
+            CubeWorld.Translate(-movement, 0.0f, 0.0f);
+            break;
+
+        case GLUT_KEY_RIGHT:
+            CubeWorld.Translate(movement, 0.0f, 0.0f);
+            break;
+
+        case GLUT_KEY_UP:
+            CubeWorld.Translate(0.0f, movement, 0.0f);
+            break;
+
+        case GLUT_KEY_DOWN:
+            CubeWorld.Translate(0.0f, -movement, 0.0f);
+            break;
+    }
+
     glutPostRedisplay();
 }
 
@@ -280,8 +366,8 @@ int main(int argc, char** argv){
 
     glutDisplayFunc(RenderSceneCB);
 
-    // glutKeyboardFunc(KeyboardCB);
-    // glutSpecialFunc(SpecialKeyboardCB);
+    glutKeyboardFunc(KeyboardCB);
+    glutSpecialFunc(SpecialKeyboardCB);
 
     glutMainLoop();
 
