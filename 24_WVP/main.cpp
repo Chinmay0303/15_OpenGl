@@ -13,6 +13,9 @@ GLuint VBO;
 GLuint IBO;
 GLuint gWVPLocation;
 
+GLuint gNearColourLocation;
+GLuint gFarColourLocation;
+
 World CubeWorld;
 View CubeView;
 
@@ -24,6 +27,9 @@ float zNear = 1.0f;
 float zFar = 10.0f;
 
 Project CubeProject(FOV,WINDOW_WIDTH,WINDOW_HEIGHT,zNear,zFar);
+
+std::vector<float> nearColour(3);
+std::vector<float> farColour(3);
 
 struct AnimationState {
     bool x = false;
@@ -73,6 +79,16 @@ static void UpdateAnimation( Vector3f arbitraryAxis)
     }
 }
 
+static std::vector<float> getRandomColour(){
+    float red   = RandomFloat();
+    float green = RandomFloat();
+    float blue  = RandomFloat();
+
+    std::vector<float> colour = {red,green,blue}; 
+        
+    return colour;
+}
+
 struct Vertex {
     Vector3f pos;
     Vector3f color;
@@ -83,12 +99,14 @@ struct Vertex {
     {
         pos = Vector3f(x, y, z);
 
-        float red   = RandomFloat();
-        float green = RandomFloat();
-        float blue  = RandomFloat();
-        color = Vector3f(red, green, blue);
+        std::vector<float> colour_vector = getRandomColour();
+        color.x = colour_vector[0];
+        color.y = colour_vector[1];
+        color.z = colour_vector[2];
+        // color = Vector3f(red, 0.0f, 0.0f);
     }
 };
+
 
 static void CreateVertexBuffer()
 {
@@ -145,6 +163,9 @@ void RenderSceneCB(){
     Matrix4f WVP = P * V * W;
 
     glUniformMatrix4fv(gWVPLocation, 1, GL_TRUE, &WVP.m[0][0]);
+
+    glUniform3fv(gNearColourLocation,1,&nearColour[0]);
+    glUniform3fv(gFarColourLocation,1,&farColour[0]);
 
     glBindBuffer(GL_ARRAY_BUFFER,VBO);
     glEnableVertexAttribArray(0);
@@ -390,6 +411,24 @@ static void CompileShaders()
         std::cout << "gWVPLocation: " << gWVPLocation << "\n";
     }
 
+    gNearColourLocation = glGetUniformLocation(ShaderProgram, "gNearColour");
+    if (gNearColourLocation == -1) {
+        printf("Error getting uniform location of 'gNearColour'\n");
+        exit(1);
+    }
+    else{
+        std::cout << "gNearColourLocation: " << gNearColourLocation << "\n";
+    }
+
+    gFarColourLocation = glGetUniformLocation(ShaderProgram, "gFarColour");
+    if (gFarColourLocation == -1) {
+        printf("Error getting uniform location of 'gFarColour'\n");
+        exit(1);
+    }
+    else{
+        std::cout << "gFarColourLocation: " << gFarColourLocation << "\n";
+    }
+
     glValidateProgram(ShaderProgram);
     glGetProgramiv(ShaderProgram, GL_VALIDATE_STATUS, &Success);
     if (!Success) {
@@ -406,6 +445,9 @@ int main(int argc, char** argv){
     srand(time(0));
 
     randomAxis = CreateRandomAxis();
+
+    nearColour = getRandomColour();
+    farColour = getRandomColour();
 
     glutInit(&argc, argv);
     glutInitDisplayMode(GLUT_DOUBLE | GLUT_RGBA | GLUT_DEPTH);
@@ -452,10 +494,10 @@ int main(int argc, char** argv){
 
     CompileShaders();
 
-    float red = 0.0f;
-    float green = 0.0f;
-    float blue = 0.0f;
-    float alpha = 0.0f;
+    float red = 0.96f;
+    float green = 0.95f;
+    float blue = 0.75f;
+    float alpha = 1.0f;
 
     glClearColor(red,green,blue,alpha);
     glClear(GL_COLOR_BUFFER_BIT);
