@@ -16,6 +16,9 @@ GLuint gWVPLocation;
 World CubeWorld;
 View CubeView;
 
+GLenum Mode = GL_FILL;
+bool CullState = true;
+
 float FOV = 45.0f;
 float zNear = 1.0f;
 float zFar = 10.0f;
@@ -150,7 +153,8 @@ void RenderSceneCB(){
     glEnableVertexAttribArray(1);
     glVertexAttribPointer(1,3,GL_FLOAT,GL_FALSE,6*sizeof(float),(void*)(3 * sizeof(float)));
 
-    // glDrawArrays(GL_TRIANGLES,0,6);
+    // glPolygonMode(GL_FRONT,GL_FILL);
+    glPolygonMode(GL_FRONT_AND_BACK,Mode);
     glDrawElements(GL_TRIANGLES, 36, GL_UNSIGNED_INT, 0);
 
     glDisableVertexAttribArray(0);
@@ -242,6 +246,35 @@ static void KeyboardCB(unsigned char key, int mouse_x, int mouse_y)
 
         case ' ':
             animationState.paused = !animationState.paused;
+            break;
+
+        case 'f':
+        case 'F':
+            {
+                    Mode = GL_FILL;
+            }
+            break;
+
+        case 'w':
+        case 'W':
+            {
+                    Mode = GL_LINE;
+            }
+            break;
+
+        case 'c':
+        case 'C':
+            {
+                   if(CullState){
+                        glDisable(GL_CULL_FACE);
+                        CullState = false;
+                   }
+                   else{
+                        glEnable(GL_CULL_FACE);
+                        CullState = true;
+                   }
+
+            }
             break;
 
         default:
