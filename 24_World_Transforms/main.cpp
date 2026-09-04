@@ -22,6 +22,54 @@ float zFar = 10.0f;
 
 Project CubeProject(FOV,WINDOW_WIDTH,WINDOW_HEIGHT,zNear,zFar);
 
+struct AnimationState {
+    bool x = false;
+    bool y = false;
+    bool z = false;
+    bool arbitrary = true;
+    bool paused = false;
+};
+
+static AnimationState animationState;
+
+static Vector3f CreateRandomAxis()
+{
+    // (rand()/RAND_MAX) generates a float between 0 and 1
+    Vector3f axis(
+        ((float)rand()/RAND_MAX) * 2.0f - 1.0f,
+        ((float)rand()/RAND_MAX) * 2.0f - 1.0f,
+        ((float)rand()/RAND_MAX) * 2.0f - 1.0f);
+
+    return axis;
+}
+
+Vector3f randomAxis;
+
+static void UpdateAnimation( Vector3f arbitraryAxis)
+{
+    if (animationState.paused) {
+        return;
+    }
+
+    float angleStep = 0.5f;
+
+    if (animationState.x) {
+        CubeWorld.Rotate(angleStep, 0.0f, 0.0f);
+    }
+
+    if (animationState.y) {
+        CubeWorld.Rotate(0.0f, angleStep, 0.0f);
+    }
+
+    if (animationState.z) {
+        CubeWorld.Rotate(0.0f, 0.0f, angleStep);
+    }
+
+    if (animationState.arbitrary) {
+        CubeWorld.RotateAroundArbitraryAxis(arbitraryAxis, angleStep);
+    }
+}
+
 struct Vertex {
     Vector3f pos;
     Vector3f color;
@@ -83,35 +131,15 @@ void RenderSceneCB(){
 
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-    static float dx = 0.01f;
-    float pos_x = CubeWorld.GetPosition().x;
+    UpdateAnimation(randomAxis);
+    
+    Matrix4f W = CubeWorld.GetMatrix();
 
-    if(pos_x >= 1.0f || pos_x <= -1.0f){
-        dx = -1.0f * dx;
-    }
+    Matrix4f V = CubeView.GetMatrix();
 
-    static float scale_x = 1.0f;
-    static float step = 0.001f;
+    Matrix4f P = CubeProject.GetMatrix();
 
-    if(scale_x >= 2.0f || scale_x <= 0.0f){
-        step = -1.0f * step;
-    }
-
-    // CubeWorld.SetScale(scale_x,1.0f,1.0f);
-    // CubeWorld.Translate(dx,0.0f,0.0f);
-    // CubeWorld.Rotate(0.0f, 0.5, 0.0f);
-    Matrix4f World = CubeWorld.GetMatrix();
-
-    scale_x += step;
-
-    Matrix4f View = CubeView.GetMatrix();
-
-    Matrix4f Projection = CubeProject.GetMatrix();
-    // Projection.InitPersProjTransform(persProjInfo);
-
-    Matrix4f WVP = Projection * View * World;
-    // Matrix4f WVP = View * World;
-    // Matrix4f WVP = World;
+    Matrix4f WVP = P * V * W;
 
     glUniformMatrix4fv(gWVPLocation, 1, GL_TRUE, &WVP.m[0][0]);
 
@@ -180,15 +208,48 @@ static void KeyboardCB(unsigned char key, int mouse_x, int mouse_y)
         case '0':
             {
                 CubeWorld.ResetTransform();
+                animationState.x = false;
+                animationState.y = false;
+                animationState.z = false;
+                animationState.arbitrary = false;
+                animationState.paused = false;
             }
+            break;
+
+        case 'x':
+        case 'X':
+            animationState.x = !animationState.x;
+            break;
+
+        case 'y':
+        case 'Y':
+            animationState.y = !animationState.y;
+            break;
+
+        case 'z':
+        case 'Z':
+            animationState.z = !animationState.z;
+            break;
+
+        case 'r':
+        case 'R':
+            {
+                if(!animationState.arbitrary)
+                    randomAxis = CreateRandomAxis();
+                animationState.arbitrary = !animationState.arbitrary;
+            }
+            break;
+
+        case ' ':
+            animationState.paused = !animationState.paused;
             break;
 
         default:
         {
             CubeView.OnKeyboard(key);
-            glutPostRedisplay();
         }
     }
+    glutPostRedisplay();
 }
 
 
@@ -309,7 +370,9 @@ static void CompileShaders()
 
 int main(int argc, char** argv){
 
-    SRANDOM;
+    srand(time(0));
+
+    randomAxis = CreateRandomAxis();
 
     glutInit(&argc, argv);
     glutInitDisplayMode(GLUT_DOUBLE | GLUT_RGBA | GLUT_DEPTH);
