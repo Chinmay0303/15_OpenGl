@@ -24,6 +24,16 @@ GLuint gFarColourLocation;
 
 GLuint gCenterZLocation;
 
+GLint gLightPositionLocation;
+GLint gLightAmbientLocation;
+GLint gLightDiffuseLocation;
+
+GLint gMaterialAmbientLocation;
+GLint gMaterialDiffuseLocation;
+
+GLint gAmbientEnabledLocation;
+GLint gDiffuseEnabledLocation;
+
 World ModelWorld;
 View ModelView;
 
@@ -368,6 +378,22 @@ static void PrintNormCoordinates(std::vector<Vector3f> &Vertices){
     std::cout << "\n";
 }
 
+struct Light {
+    Vector3f position;
+    Vector3f ambient;
+    Vector3f diffuse;
+};
+
+struct Material {
+    Vector3f ambient;
+    Vector3f diffuse;
+};
+
+static Light SceneLight;
+static Material ModelMaterial;
+
+static bool AmbientEnabled = true;
+static bool DiffuseEnabled = false;
 
 static void CreateVertexBuffer(Vector3f* VertexArray, unsigned int* IndexArray)
 {	
@@ -445,13 +471,30 @@ static void RenderSceneCB()
     glUniformMatrix4fv(gWorldLocation, 1, GL_TRUE, &W.m[0][0]);
     glUniformMatrix4fv(gWVPLocation, 1, GL_TRUE, &WVP.m[0][0]);
 
-    // glUniform3fv(gNearColourLocation,1,&nearColour[0]);
     glUniform3f(gNearColourLocation,nearColour.x,nearColour.y,nearColour.z);
 
-    // glUniform3fv(gFarColourLocation,1,&farColour[0]);
     glUniform3f(gFarColourLocation,farColour.x,farColour.y,farColour.z);
 
     glUniform1f(gCenterZLocation,centerZ);
+
+    glUniform3f(gLightPositionLocation,SceneLight.position.x,
+                SceneLight.position.y,SceneLight.position.z);
+
+    glUniform3f(gLightAmbientLocation,SceneLight.ambient.x,
+                SceneLight.ambient.y,SceneLight.ambient.z);
+
+    glUniform3f(gLightDiffuseLocation,SceneLight.diffuse.x,
+                SceneLight.diffuse.y,SceneLight.diffuse.z);
+
+    glUniform3f(gMaterialAmbientLocation,ModelMaterial.ambient.x,
+                ModelMaterial.ambient.y,ModelMaterial.ambient.z);
+
+    glUniform3f(gMaterialDiffuseLocation,ModelMaterial.diffuse.x,
+                ModelMaterial.diffuse.y,ModelMaterial.diffuse.z);
+
+    glUniform1i(gAmbientEnabledLocation,AmbientEnabled ? GL_TRUE : GL_FALSE);
+
+    glUniform1i(gDiffuseEnabledLocation,DiffuseEnabled ? GL_TRUE : GL_FALSE);
 
     glBindVertexArray(VAO);
 
@@ -577,6 +620,16 @@ static void KeyboardCB(unsigned char key, int mouse_x, int mouse_y)
 
             }
             break;
+        
+        case 'a':
+        case 'A':
+            AmbientEnabled = !AmbientEnabled;
+            break;
+
+        case 'd':
+        case 'D':
+            DiffuseEnabled = !DiffuseEnabled;
+            break;
 
         default:
         {
@@ -648,6 +701,17 @@ static void AddShader(GLuint ShaderProgram, const char* pShaderText, GLenum Shad
 const char* pVSFileName = "shader.vs";
 const char* pFSFileName = "shader.fs";
 
+static void CheckUniformLocation(GLint location, const char* name)
+{
+    if (location == -1) {
+        std::cerr
+            << "Error getting uniform location of '"
+            << name << "'\n";
+
+        std::exit(EXIT_FAILURE);
+    }
+}
+
 static void CompileShaders()
 {
     ShaderProgram = glCreateProgram();
@@ -684,49 +748,40 @@ static void CompileShaders()
     }
 
     gWorldLocation = glGetUniformLocation(ShaderProgram, "gWorld");
-    if (gWorldLocation == -1) {
-        printf("Error getting uniform location of 'gWorld'\n");
-        exit(1);
-    }
-    else{
-        std::cout << "gWorldLocation: " << gWorldLocation << "\n";
-    }
+    CheckUniformLocation(gWorldLocation,"gWorldLocation");
 
     gWVPLocation = glGetUniformLocation(ShaderProgram, "gWVP");
-    if (gWVPLocation == -1) {
-        printf("Error getting uniform location of 'gWVP'\n");
-        exit(1);
-    }
-    else{
-        std::cout << "gWVPLocation: " << gWVPLocation << "\n";
-    }
+    CheckUniformLocation(gWVPLocation,"gWVPLocation");
 
     gNearColourLocation = glGetUniformLocation(ShaderProgram, "gNearColour");
-    if (gNearColourLocation == -1) {
-        printf("Error getting uniform location of 'gNearColour'\n");
-        exit(1);
-    }
-    else{
-        std::cout << "gNearColourLocation: " << gNearColourLocation << "\n";
-    }
+    CheckUniformLocation(gNearColourLocation,"gNearColourLocation");
 
     gFarColourLocation = glGetUniformLocation(ShaderProgram, "gFarColour");
-    if (gFarColourLocation == -1) {
-        printf("Error getting uniform location of 'gFarColour'\n");
-        exit(1);
-    }
-    else{
-        std::cout << "gFarColourLocation: " << gFarColourLocation << "\n";
-    }
+    CheckUniformLocation(gFarColourLocation,"gFarColourLocation");
 
     gCenterZLocation = glGetUniformLocation(ShaderProgram, "gCenterZ");
-    if (gCenterZLocation == -1) {
-        printf("Error getting uniform location of 'gCenterZ'\n");
-        exit(1);
-    }
-    else{
-        std::cout << "gCenterZLocation: " << gCenterZLocation << "\n";
-    }
+    CheckUniformLocation(gCenterZLocation,"gCenterZLocation");
+
+    gLightPositionLocation = glGetUniformLocation(ShaderProgram,"gLightPosition");
+    CheckUniformLocation(gLightPositionLocation,"gLightPositionLocation");
+
+    gLightAmbientLocation = glGetUniformLocation(ShaderProgram,"gLightAmbient");
+    CheckUniformLocation(gLightAmbientLocation,"gLightAmbientLocation");
+
+    gLightDiffuseLocation = glGetUniformLocation(ShaderProgram,"gLightDiffuse");
+    CheckUniformLocation(gLightDiffuseLocation,"gLightDiffuseLocation");
+
+    gMaterialAmbientLocation = glGetUniformLocation(ShaderProgram,"gMaterialAmbient");
+    CheckUniformLocation(gMaterialAmbientLocation,"gMaterialAmbientLocation");
+
+    gMaterialDiffuseLocation = glGetUniformLocation(ShaderProgram,"gMaterialDiffuse");
+    CheckUniformLocation(gMaterialDiffuseLocation,"gMaterialDiffuseLocation");
+
+    gAmbientEnabledLocation = glGetUniformLocation(ShaderProgram,"gAmbientEnabled");
+    CheckUniformLocation(gAmbientEnabledLocation,"gAmbientEnabledLocation");
+
+    gDiffuseEnabledLocation = glGetUniformLocation(ShaderProgram,"gDiffuseEnabled");
+    CheckUniformLocation(gDiffuseEnabledLocation,"gDiffuseEnabledLocation");
 
     glValidateProgram(ShaderProgram);
     glGetProgramiv(ShaderProgram, GL_VALIDATE_STATUS, &Success);
@@ -833,6 +888,13 @@ int main(int argc, char** argv){
 
     ModelVertices = getVertices(model);
     ModelIndices = getIndices(model);
+
+    SceneLight.position = Vector3f(3.0f, 3.0f, 3.0f);
+    SceneLight.ambient = Vector3f(1.0f, 1.0f, 1.0f);
+    SceneLight.diffuse = Vector3f(1.0f, 1.0f, 1.0f);
+
+    ModelMaterial.ambient = Vector3f(0.25f, 0.25f, 0.25f);
+    ModelMaterial.diffuse = Vector3f(0.8f, 0.8f, 0.8f);
 
     Bounds bounds(ModelVertices);
 

@@ -1,10 +1,22 @@
 #version 330 core
 
-in vec3 VertexNormal;
+in vec3 WorldNormal;
+in vec3 WorldPosition;
+
 out vec4 FragColour;
 
 uniform vec3 gNearColour;
 uniform vec3 gFarColour;
+
+uniform vec3 gLightPosition;
+uniform vec3 gLightAmbient;
+uniform vec3 gLightDiffuse;
+
+uniform vec3 gMaterialAmbient;
+uniform vec3 gMaterialDiffuse;
+
+uniform bool gAmbientEnabled;
+uniform bool gDiffuseEnabled;
 
 float CameraNear = 0.1;
 float CameraFar = 20.0;
@@ -34,12 +46,24 @@ void main()
 
     vec3 depthColour = mix(gNearColour, gFarColour, depthFactor);
 
-    vec3 normal = normalize(VertexNormal);
 
-    // Convert [-1, 1] to [0, 1].
-    vec3 normalColour = normal * 0.5 + 0.5;
+    vec3 N = normalize(WorldNormal);
 
-    vec3 finalColour = mix(normalColour,depthColour,0.5);
+    vec3 L = normalize(gLightPosition - WorldPosition);
+
+    vec3 colour = vec3(0.0);
+
+    if (gAmbientEnabled){
+        colour += gMaterialAmbient * gLightAmbient;
+    }
+
+    if (gDiffuseEnabled){
+        float diffuseFactor = max(dot(N, L), 0.0);
+
+        colour += diffuseFactor * gMaterialDiffuse * gLightDiffuse;
+    }
+
+    vec3 finalColour = mix(colour,depthColour,0.5);
 
     FragColour = vec4(clamp(finalColour, 0.0, 1.0),1.0);
 }
