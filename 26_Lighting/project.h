@@ -11,16 +11,35 @@ class Project {
             Width(width),
             Height(height),
             zNear(nearPlane),
-            zFar(farPlane)
+            zFar(farPlane),
+            Orthographic(false)
         {}
 
             Matrix4f GetMatrix();
+
+            void ToggleProjection(){
+                Orthographic = !Orthographic;
+            }
+            bool IsOrthographic(){
+                return Orthographic;
+            }
+            void SetViewportSize(float width, float height){
+                Width = width;
+                Height = height;
+            }
+
     private:
         float FOV;
         float Width;
         float Height;
         float zNear;
         float zFar;
+
+        bool Orthographic;
+
+        Matrix4f GetPerspectiveMatrix();
+        Matrix4f GetOrthographicMatrix();
+
 
 };
 

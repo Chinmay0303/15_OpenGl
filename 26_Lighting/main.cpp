@@ -613,8 +613,10 @@ static void RenderSceneCB()
 static void onReshape(int width, int height) {
 	glViewport(0, 0, width, height);
 	if (!isFullScreen) {
-		WINDOW_WIDTH = width;
-		WINDOW_HEIGHT = height;
+		WINDOW_WIDTH = (float) width;
+		WINDOW_HEIGHT = (float) height;
+
+        ModelProject.SetViewportSize(WINDOW_WIDTH,WINDOW_HEIGHT);
 	}
 	// update scene based on new aspect ratio....
 }
@@ -778,6 +780,17 @@ static void KeyboardCB(unsigned char key, int mouse_x, int mouse_y)
         case 's':
         case 'S':
             SpecularEnabled = !SpecularEnabled;
+            break;
+
+        case 'p':
+        case 'P':
+            {
+                ModelProject.ToggleProjection();
+
+                // std::cout<< (ModelProject.IsOrthographic()
+                //             ? "Orthographic projection\n"
+                //             : "Perspective projection\n");
+            }
             break;
 
         default:
@@ -1076,14 +1089,14 @@ int main(int argc, char** argv){
     ModelIndices = getIndices(model);
 
     SceneLight.position = Vector3f(3.0f, 3.0f, 3.0f);
-    SceneLight.ambient = Vector3f(1.0f, 1.0f, 1.0f);
+    SceneLight.ambient = Vector3f(0.5f, 0.5f, 0.5f);
     SceneLight.diffuse = Vector3f(1.0f, 1.0f, 1.0f);
     SceneLight.specular = Vector3f(0.3f,0.3f,0.3f);
 
     ModelMaterial.ambient = Vector3f(0.25f, 0.25f, 0.25f);
     ModelMaterial.diffuse = Vector3f(0.8f, 0.8f, 0.4f);
     ModelMaterial.specular = Vector3f(0.5f, 0.5f, 0.5f);
-    ModelMaterial.shininess = 16.0f;
+    ModelMaterial.shininess = 32.0f;
     // 8       broad, dull highlight
     // 32      moderate highlight
     // 128     small, sharp highlight
@@ -1107,15 +1120,15 @@ int main(int argc, char** argv){
 
     CompileShaders();
 
-    float red = 0.96f;
-    float green = 0.95f;
-    float blue = 0.75f;
-    float alpha = 1.0f;
-
-    // float red = 0.0f;
-    // float green = 0.0f;
-    // float blue = 0.0f;
+    // float red = 0.96f;
+    // float green = 0.95f;
+    // float blue = 0.75f;
     // float alpha = 1.0f;
+
+    float red = 0.0f;
+    float green = 0.0f;
+    float blue = 0.0f;
+    float alpha = 1.0f;
 
     glClearColor(red,green,blue,alpha);
     glClear(GL_COLOR_BUFFER_BIT);
