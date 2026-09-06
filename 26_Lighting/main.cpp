@@ -8,28 +8,30 @@
 #include "view.h"
 #include "project.h"
 
-#define WINDOW_WIDTH 1920
-#define WINDOW_HEIGHT 1080
+float WINDOW_WIDTH  = 960.0f;
+float WINDOW_HEIGHT = 540.0f;
+
+float WindowPositionX = 0.0f;
+float WindowPositionY = 0.0f;
+
+bool isFullScreen = false;
 
 GLuint ShaderProgram;
 
 GLuint VBO;
 GLuint IBO;
 GLuint VAO;
-GLuint gWorldLocation;
-GLuint gWVPLocation;
+GLint gWorldLocation;
 
 GLint gViewLocation;
 GLint gProjectionLocation;
 
-GLuint gNearColourLocation;
-GLuint gFarColourLocation;
+GLint gNearColourLocation;
+GLint gFarColourLocation;
 
-GLuint gCenterZLocation;
+GLint gCenterZLocation;
 
 GLint gLightPositionViewLocation;
-
-GLint gLightPositionLocation;
 GLint gLightAmbientLocation;
 GLint gLightDiffuseLocation;
 
@@ -41,6 +43,10 @@ GLint gDiffuseEnabledLocation;
 
 World ModelWorld;
 View ModelView;
+
+char * theProgramTitle = "Assignment 1";
+
+const int ANIMATION_DELAY = 20; /* milliseconds between rendering */
 
 GLenum Mode = GL_FILL;
 bool CullState = true;
@@ -80,8 +86,8 @@ static Vector3f CreateRandomAxis()
         return axis;
     }
 
-    int NumVertices = 0;
-    int NumIndices = 0;
+int NumVertices = 0;
+int NumIndices = 0;
 int NumTriangles = 0;
 
 struct Bounds{
@@ -137,7 +143,7 @@ static void UpdateAnimation( Vector3f arbitraryAxis)
         return;
     }
     
-    float angleStep = 0.5f;
+    float angleStep = 1.5f;
     
     if (animationState.x) {
         ModelWorld.Rotate(angleStep, 0.0f, 0.0f);
@@ -400,6 +406,59 @@ static Material ModelMaterial;
 static bool AmbientEnabled = true;
 static bool DiffuseEnabled = false;
 
+/* post: compute frames per second and display in window's title bar */
+void computeFPS() {
+	static int frameCount = 0;
+	static int lastFrameTime = 0;
+	static char * title = NULL;
+	int currentTime;
+
+	if (!title)
+		title = (char*) malloc((strlen(theProgramTitle) + 20) * sizeof (char));
+	frameCount++;
+	currentTime = glutGet((GLenum) (GLUT_ELAPSED_TIME));
+	if (currentTime - lastFrameTime > 1000) {
+		sprintf(title, "%s [ FPS: %4.2f ]",
+			theProgramTitle,
+			frameCount * 1000.0 / (currentTime - lastFrameTime));
+		glutSetWindowTitle(title);
+		lastFrameTime = currentTime;
+		frameCount = 0;
+	}
+}
+
+static void ComputeFPS()
+{
+    static int frameCount = 0;
+    static int previousTime = 0;
+    static char title[128];
+
+    const int currentTime =
+        glutGet(GLUT_ELAPSED_TIME);
+
+    ++frameCount;
+
+    const int elapsed =
+        currentTime - previousTime;
+
+    if (elapsed >= 1000) {
+        const double fps =
+            frameCount * 1000.0 / elapsed;
+
+        std::snprintf(
+            title,
+            sizeof(title),
+            "%s [FPS: %.2f]",
+            theProgramTitle,
+            fps);
+
+        glutSetWindowTitle(title);
+
+        frameCount = 0;
+        previousTime = currentTime;
+    }
+}
+
 static void CreateVertexBuffer(Vector3f* VertexArray, unsigned int* IndexArray)
 {	
     std::cout << "Number of Vertices: " << NumVertices << "\n";
@@ -522,8 +581,53 @@ static void RenderSceneCB()
     glBindVertexArray(0);
 
     glutSwapBuffers();
-    glutPostRedisplay();
+    // glutPostRedisplay();
+    computeFPS();
+    // ComputeFPS();
 }
+
+/* pre:  glut window has been resized
+ */
+static void onReshape(int width, int height) {
+	glViewport(0, 0, width, height);
+	if (!isFullScreen) {
+		WINDOW_WIDTH = width;
+		WINDOW_HEIGHT = height;
+	}
+	// update scene based on new aspect ratio....
+}
+
+/* pre:  glut window is not doing anything else
+   post: scene is updated and re-rendered if necessary */
+static void onIdle() {
+	static int oldTime = 0;
+	if (!animationState.paused) {
+		int currentTime = glutGet((GLenum) (GLUT_ELAPSED_TIME));
+		/* Ensures fairly constant framerate */
+		if (currentTime - oldTime > ANIMATION_DELAY) {
+			// do animation....
+			// rotation += 0.001;
+
+			oldTime = currentTime;
+			/* compute the frame rate */
+			// computeFPS();
+			/* notify window it has to be repainted */
+			glutPostRedisplay();
+		}
+	}
+}
+
+/* pre:  glut window has just been iconified or restored 
+   post: if window is visible, animate model, otherwise don't bother */
+static void onVisible(int state) {
+	if (state == GLUT_VISIBLE) {
+		/* tell glut to show model again */
+		glutIdleFunc(onIdle);
+	} else {
+		glutIdleFunc(NULL);
+	}
+}
+
 
 static void KeyboardCB(unsigned char key, int mouse_x, int mouse_y)
 {
@@ -678,6 +782,18 @@ static void SpecialKeyboardCB(int key, int mouse_x, int mouse_y)
         case GLUT_KEY_DOWN:
             ModelWorld.Translate(0.0f, -movement, 0.0f);
             break;
+
+        case GLUT_KEY_F1:
+			isFullScreen = !isFullScreen;
+			if (isFullScreen) {
+				WindowPositionX = glutGet((GLenum) (GLUT_WINDOW_X));
+				WindowPositionY = glutGet((GLenum) (GLUT_WINDOW_Y));
+				glutFullScreen();
+			} else {
+				glutReshapeWindow(WINDOW_WIDTH, WINDOW_HEIGHT);
+				glutPositionWindow(WindowPositionX, WindowPositionY);
+			}
+			break;
     }
 
     glutPostRedisplay();
@@ -863,8 +979,8 @@ int main(int argc, char** argv){
     // int width = 960;
     // int height = 960;
     
-    int x = 0;
-    int y = 0;
+    // int x = 0;
+    // int y = 0;
     
     ModelWorld.SetPosition(0.0f,0.0f,0.0f);
     ModelWorld.SetScale(1.0f,1.0f,1.0f);
@@ -874,10 +990,14 @@ int main(int argc, char** argv){
     ModelView.SetUp(0.0f, 1.0f, 0.0f);
     
     glutInitWindowSize(WINDOW_WIDTH,WINDOW_HEIGHT);
-    glutInitWindowPosition(x,y);
+    glutInitWindowPosition(WindowPositionX,WindowPositionY);
     
-    int window_id = glutCreateWindow("Uniforms");
-    
+    // int window_id = glutCreateWindow("Uniforms");
+    int window_id = glutCreateWindow(theProgramTitle);
+
+    glutIdleFunc(onIdle);
+    glutVisibilityFunc(onVisible);
+
     std::cout << "window_id : " << window_id << "\n";
     
     GLenum res = glewInit();
