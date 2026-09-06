@@ -593,6 +593,8 @@ static void RenderSceneCB()
 
     glUniform1i(gSpecularEnabledLocation,SpecularEnabled ? GL_TRUE : GL_FALSE);
 
+    glUniform1f(gMaterialShininessLocation,ModelMaterial.shininess);
+
     glBindVertexArray(VAO);
 
     glPolygonMode(GL_FRONT_AND_BACK,Mode);
@@ -1080,8 +1082,8 @@ int main(int argc, char** argv){
 
     ModelMaterial.ambient = Vector3f(0.25f, 0.25f, 0.25f);
     ModelMaterial.diffuse = Vector3f(0.8f, 0.8f, 0.4f);
-    ModelMaterial.specular = Vector3f(0.3f, 0.3f, 0.3f);
-    ModelMaterial.shininess = 32.0f;
+    ModelMaterial.specular = Vector3f(0.5f, 0.5f, 0.5f);
+    ModelMaterial.shininess = 16.0f;
     // 8       broad, dull highlight
     // 32      moderate highlight
     // 128     small, sharp highlight

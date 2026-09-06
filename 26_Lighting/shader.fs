@@ -3,6 +3,8 @@
 in vec3 ViewNormal;
 in vec3 ViewPosition;
 
+in float VertexDepth;
+
 out vec4 FragColour;
 
 uniform vec3 gNearColour;
@@ -33,23 +35,12 @@ float DisplayFar = gCenterZ + 1.0;
 
 void main()
 {
-    float ndcDepth = gl_FragCoord.z * 2.0 - 1.0;
+    float depthFactor = clamp((VertexDepth - DisplayNear) /
+                             (DisplayFar - DisplayNear),
+                              0.0,
+                              1.0);
 
-    float eyeDistance =
-        (2.0 * CameraNear * CameraFar) /
-        (CameraFar + CameraNear -
-         ndcDepth * (CameraFar - CameraNear));
-
-    float depthFactor = clamp(
-        (eyeDistance - DisplayNear) /
-        (DisplayFar - DisplayNear),
-        0.0,
-        1.0
-    );
-
-    // depthFactor = smoothstep(0.0, 1.0, depthFactor);
-
-    vec3 depthColour = mix(gNearColour, gFarColour, depthFactor);
+    vec3 depthColour = mix(gNearColour,gFarColour,depthFactor);
 
     vec3 N = normalize(ViewNormal);
 

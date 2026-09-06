@@ -12,6 +12,8 @@ uniform mat4 gProjection;
 out vec3 ViewNormal;
 out vec3 ViewPosition;
 
+out float VertexDepth;
+
 void main()
 {
 
@@ -25,4 +27,7 @@ void main()
     ViewPosition = positionView.xyz;
 
     gl_Position = gProjection * positionView;
+
+    // VertexDepth = length(positionView.xyz);
+    VertexDepth = -positionView.z;
 }
