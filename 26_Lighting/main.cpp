@@ -41,6 +41,12 @@ GLint gMaterialDiffuseLocation;
 GLint gAmbientEnabledLocation;
 GLint gDiffuseEnabledLocation;
 
+GLint gLightSpecularLocation;
+GLint gMaterialSpecularLocation;
+GLint gMaterialShininessLocation;
+
+GLint gSpecularEnabledLocation;
+
 World ModelWorld;
 View ModelView;
 
@@ -69,7 +75,7 @@ struct AnimationState {
     bool x = false;
     bool y = false;
     bool z = false;
-    bool arbitrary = true;
+    bool arbitrary = false;
     bool paused = false;
 };
 
@@ -393,18 +399,23 @@ struct Light {
     Vector3f position;
     Vector3f ambient;
     Vector3f diffuse;
+    Vector3f specular;
 };
 
 struct Material {
     Vector3f ambient;
     Vector3f diffuse;
+    Vector3f specular;
+
+    float shininess;
 };
 
 static Light SceneLight;
 static Material ModelMaterial;
 
-static bool AmbientEnabled = true;
+static bool AmbientEnabled = false;
 static bool DiffuseEnabled = false;
+static bool SpecularEnabled = false;
 
 /* post: compute frames per second and display in window's title bar */
 void computeFPS() {
@@ -569,9 +580,18 @@ static void RenderSceneCB()
     glUniform3f(gMaterialDiffuseLocation,ModelMaterial.diffuse.x,
                 ModelMaterial.diffuse.y,ModelMaterial.diffuse.z);
 
+    glUniform3f(gLightSpecularLocation,SceneLight.specular.x,
+                SceneLight.specular.y,SceneLight.specular.z);
+
+    glUniform3f(gMaterialSpecularLocation,ModelMaterial.specular.x,
+                ModelMaterial.specular.y,ModelMaterial.specular.z);
+
+
     glUniform1i(gAmbientEnabledLocation,AmbientEnabled ? GL_TRUE : GL_FALSE);
 
     glUniform1i(gDiffuseEnabledLocation,DiffuseEnabled ? GL_TRUE : GL_FALSE);
+
+    glUniform1i(gSpecularEnabledLocation,SpecularEnabled ? GL_TRUE : GL_FALSE);
 
     glBindVertexArray(VAO);
 
@@ -753,6 +773,11 @@ static void KeyboardCB(unsigned char key, int mouse_x, int mouse_y)
             DiffuseEnabled = !DiffuseEnabled;
             break;
 
+        case 's':
+        case 'S':
+            SpecularEnabled = !SpecularEnabled;
+            break;
+
         default:
         {
             ModelView.OnKeyboard(key);
@@ -917,6 +942,18 @@ static void CompileShaders()
     gDiffuseEnabledLocation = glGetUniformLocation(ShaderProgram,"gDiffuseEnabled");
     CheckUniformLocation(gDiffuseEnabledLocation,"gDiffuseEnabledLocation");
 
+    gLightSpecularLocation = glGetUniformLocation(ShaderProgram,"gLightSpecular");
+    CheckUniformLocation(gLightSpecularLocation,"gLightSpecularLocation");
+
+    gMaterialSpecularLocation = glGetUniformLocation(ShaderProgram,"gMaterialSpecular");
+    CheckUniformLocation(gMaterialSpecularLocation,"gMaterialSpecularLocation");
+
+    gMaterialShininessLocation = glGetUniformLocation(ShaderProgram,"gMaterialShininess");
+    CheckUniformLocation(gMaterialShininessLocation,"gMaterialShininessLocation");
+
+    gSpecularEnabledLocation = glGetUniformLocation(ShaderProgram,"gSpecularEnabled");
+    CheckUniformLocation(gSpecularEnabledLocation,"gSpecularEnabledLocation");
+
     gViewLocation = glGetUniformLocation(ShaderProgram,"gView");
     CheckUniformLocation(gViewLocation,"gViewLocation");
 
@@ -1039,9 +1076,16 @@ int main(int argc, char** argv){
     SceneLight.position = Vector3f(3.0f, 3.0f, 3.0f);
     SceneLight.ambient = Vector3f(1.0f, 1.0f, 1.0f);
     SceneLight.diffuse = Vector3f(1.0f, 1.0f, 1.0f);
+    SceneLight.specular = Vector3f(0.3f,0.3f,0.3f);
 
     ModelMaterial.ambient = Vector3f(0.25f, 0.25f, 0.25f);
     ModelMaterial.diffuse = Vector3f(0.8f, 0.8f, 0.4f);
+    ModelMaterial.specular = Vector3f(0.3f, 0.3f, 0.3f);
+    ModelMaterial.shininess = 32.0f;
+    // 8       broad, dull highlight
+    // 32      moderate highlight
+    // 128     small, sharp highlight
+    // 256     very sharp highlight
 
     Bounds bounds(ModelVertices);
 
