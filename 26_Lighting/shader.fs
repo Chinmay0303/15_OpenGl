@@ -1,14 +1,15 @@
 #version 330 core
 
-in vec3 WorldNormal;
-in vec3 WorldPosition;
+in vec3 ViewNormal;
+in vec3 ViewPosition;
 
 out vec4 FragColour;
 
 uniform vec3 gNearColour;
 uniform vec3 gFarColour;
 
-uniform vec3 gLightPosition;
+uniform vec3 gLightPositionView;
+
 uniform vec3 gLightAmbient;
 uniform vec3 gLightDiffuse;
 
@@ -46,10 +47,9 @@ void main()
 
     vec3 depthColour = mix(gNearColour, gFarColour, depthFactor);
 
+    vec3 N = normalize(ViewNormal);
 
-    vec3 N = normalize(WorldNormal);
-
-    vec3 L = normalize(gLightPosition - WorldPosition);
+    vec3 L = normalize(gLightPositionView - ViewPosition);
 
     vec3 colour = vec3(0.0);
 

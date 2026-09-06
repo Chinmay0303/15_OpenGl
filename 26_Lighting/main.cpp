@@ -19,10 +19,15 @@ GLuint VAO;
 GLuint gWorldLocation;
 GLuint gWVPLocation;
 
+GLint gViewLocation;
+GLint gProjectionLocation;
+
 GLuint gNearColourLocation;
 GLuint gFarColourLocation;
 
 GLuint gCenterZLocation;
+
+GLint gLightPositionViewLocation;
 
 GLint gLightPositionLocation;
 GLint gLightAmbientLocation;
@@ -462,14 +467,24 @@ static void RenderSceneCB()
 
     Matrix4f P = ModelProject.GetMatrix();
 
-    Matrix4f WVP = P * V * W;
+    // Matrix4f WVP = P * V * W;
+
+    Vector4f lightPositionView = V * Vector4f(SceneLight.position.x,
+                                              SceneLight.position.y,
+                                              SceneLight.position.z,
+                                              1.0f);
+
 
     float centerZ = ModelView.getCenterZ();
 
     glUseProgram(ShaderProgram);
 
     glUniformMatrix4fv(gWorldLocation, 1, GL_TRUE, &W.m[0][0]);
-    glUniformMatrix4fv(gWVPLocation, 1, GL_TRUE, &WVP.m[0][0]);
+    // glUniformMatrix4fv(gWVPLocation, 1, GL_TRUE, &WVP.m[0][0]);
+
+    glUniformMatrix4fv(gViewLocation, 1, GL_TRUE, &V.m[0][0]);
+
+    glUniformMatrix4fv(gProjectionLocation, 1, GL_TRUE, &P.m[0][0]);
 
     glUniform3f(gNearColourLocation,nearColour.x,nearColour.y,nearColour.z);
 
@@ -477,8 +492,11 @@ static void RenderSceneCB()
 
     glUniform1f(gCenterZLocation,centerZ);
 
-    glUniform3f(gLightPositionLocation,SceneLight.position.x,
-                SceneLight.position.y,SceneLight.position.z);
+    // glUniform3f(gLightPositionLocation,SceneLight.position.x,
+    //             SceneLight.position.y,SceneLight.position.z);
+
+    glUniform3f(gLightPositionViewLocation,lightPositionView.x,
+                lightPositionView.y,lightPositionView.z);
 
     glUniform3f(gLightAmbientLocation,SceneLight.ambient.x,
                 SceneLight.ambient.y,SceneLight.ambient.z);
@@ -750,8 +768,8 @@ static void CompileShaders()
     gWorldLocation = glGetUniformLocation(ShaderProgram, "gWorld");
     CheckUniformLocation(gWorldLocation,"gWorldLocation");
 
-    gWVPLocation = glGetUniformLocation(ShaderProgram, "gWVP");
-    CheckUniformLocation(gWVPLocation,"gWVPLocation");
+    // gWVPLocation = glGetUniformLocation(ShaderProgram, "gWVP");
+    // CheckUniformLocation(gWVPLocation,"gWVPLocation");
 
     gNearColourLocation = glGetUniformLocation(ShaderProgram, "gNearColour");
     CheckUniformLocation(gNearColourLocation,"gNearColourLocation");
@@ -762,8 +780,8 @@ static void CompileShaders()
     gCenterZLocation = glGetUniformLocation(ShaderProgram, "gCenterZ");
     CheckUniformLocation(gCenterZLocation,"gCenterZLocation");
 
-    gLightPositionLocation = glGetUniformLocation(ShaderProgram,"gLightPosition");
-    CheckUniformLocation(gLightPositionLocation,"gLightPositionLocation");
+    // gLightPositionLocation = glGetUniformLocation(ShaderProgram,"gLightPosition");
+    // CheckUniformLocation(gLightPositionLocation,"gLightPositionLocation");
 
     gLightAmbientLocation = glGetUniformLocation(ShaderProgram,"gLightAmbient");
     CheckUniformLocation(gLightAmbientLocation,"gLightAmbientLocation");
@@ -782,6 +800,15 @@ static void CompileShaders()
 
     gDiffuseEnabledLocation = glGetUniformLocation(ShaderProgram,"gDiffuseEnabled");
     CheckUniformLocation(gDiffuseEnabledLocation,"gDiffuseEnabledLocation");
+
+    gViewLocation = glGetUniformLocation(ShaderProgram,"gView");
+    CheckUniformLocation(gViewLocation,"gViewLocation");
+
+    gProjectionLocation = glGetUniformLocation(ShaderProgram,"gProjection");
+    CheckUniformLocation(gProjectionLocation,"gProjectionLocation");
+
+    gLightPositionViewLocation = glGetUniformLocation(ShaderProgram,"gLightPositionView");
+    CheckUniformLocation(gLightPositionViewLocation,"gLightPositionViewLocation");
 
     glValidateProgram(ShaderProgram);
     glGetProgramiv(ShaderProgram, GL_VALIDATE_STATUS, &Success);
@@ -826,8 +853,8 @@ int main(int argc, char** argv){
     // nearColour = Vector3f(0.43137, 0.87059, 0.49804);
     // farColour =  Vector3f(0.90980,0.51765,0.39216);
 
-    nearColour = Vector3f(1.0, 0.2, -0.5);
-    farColour =  Vector3f(0.2, 1.0, -0.5);
+    nearColour = Vector3f(1.0, 0.2, 0.0);
+    farColour =  Vector3f(0.2, 1.0, 0.0);
 
     glutInit(&argc, argv);
     glutInitDisplayMode(GLUT_DOUBLE | GLUT_RGBA | GLUT_DEPTH);
@@ -894,7 +921,7 @@ int main(int argc, char** argv){
     SceneLight.diffuse = Vector3f(1.0f, 1.0f, 1.0f);
 
     ModelMaterial.ambient = Vector3f(0.25f, 0.25f, 0.25f);
-    ModelMaterial.diffuse = Vector3f(0.8f, 0.8f, 0.8f);
+    ModelMaterial.diffuse = Vector3f(0.8f, 0.8f, 0.4f);
 
     Bounds bounds(ModelVertices);
 
