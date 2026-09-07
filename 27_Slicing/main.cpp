@@ -32,6 +32,7 @@ GLuint VBO;
 GLuint IBO;
 GLuint VAO;
 GLint gWorldLocation;
+GLint gClipWorldLocation;
 
 GLint gViewLocation;
 GLint gProjectionLocation;
@@ -72,6 +73,11 @@ bool SliceDebugEnabled = false;
 GLint gSliceDebugEnabledLocation;
 GLint gSliceDebugColourLocation;
 
+GLint gGpuSliceEnabledLocation;
+GLint gGpuPlaneCountLocation;
+GLint gGpuPlanesLocation;
+GLint gGpuRegionMaskLocation;
+
 Vector3f SliceDebugColour;
 
 GLuint PositiveVAO = 0;
@@ -88,6 +94,21 @@ GLsizei NegativeClippedIndexCount = 0;
 static std::vector<Vector3f> OriginalModelVertices;
 static std::vector<unsigned int> OriginalModelIndices;
 static std::vector<Vector3f> OriginalModelNormals;
+
+GLuint CapVAO = 0;
+GLuint CapVBO = 0;
+GLuint CapIBO = 0;
+GLsizei CapIndexCount = 0;
+
+struct RegionBuffers {
+    std::size_t mask = 0;
+    GLuint vao = 0;
+    GLuint vbo = 0;
+    GLuint ibo = 0;
+    GLsizei indexCount = 0;
+};
+
+static std::vector<RegionBuffers> PositiveRegionBuffers;
 
 static bool ModelTransformDirty = false;
 
@@ -675,6 +696,78 @@ static Matrix4f CreateTranslationMatrix(
     return M;
 }
 
+static void UpdateGpuSliceUniforms()
+{
+    const bool gpuEnabled =
+        SliceController.GetMode() == SliceMode::GPU;
+
+    const std::vector<SlicePlane>& planes =
+        SliceController.GetPlanes();
+
+    GLfloat gpuPlanes[10 * 4] = {};
+    const GLsizei planeCount =
+        static_cast<GLsizei>(std::min<std::size_t>(
+            planes.size(),
+            10));
+
+    for (GLsizei i = 0; i < planeCount; ++i) {
+        gpuPlanes[i * 4 + 0] = planes[i].normal.x;
+        gpuPlanes[i * 4 + 1] = planes[i].normal.y;
+        gpuPlanes[i * 4 + 2] = planes[i].normal.z;
+        gpuPlanes[i * 4 + 3] = planes[i].offset;
+    }
+
+    glUniform1i(
+        gGpuSliceEnabledLocation,
+        gpuEnabled ? GL_TRUE : GL_FALSE);
+
+    glUniform1i(
+        gGpuPlaneCountLocation,
+        gpuEnabled ? planeCount : 0);
+
+    glUniform1i(
+        gGpuRegionMaskLocation,
+        0);
+
+    glUniform4fv(
+        gGpuPlanesLocation,
+        planeCount,
+        gpuPlanes);
+}
+
+static Vector3f CreateRegionOffset(
+    std::size_t mask,
+    float separationDistance = 0.05f)
+{
+    Vector3f offset(0.0f, 0.0f, 0.0f);
+
+    const std::vector<SlicePlane>& planes =
+        SliceController.GetPlanes();
+
+    for (std::size_t planeIndex = 0;
+         planeIndex < planes.size();
+         ++planeIndex) {
+        const float sign =
+            (mask & (std::size_t{1} << planeIndex))
+                ? 1.0f
+                : -1.0f;
+
+        offset += planes[planeIndex].normal *
+                  sign;
+    }
+
+    const float length = std::sqrt(
+        offset.x * offset.x +
+        offset.y * offset.y +
+        offset.z * offset.z);
+
+    if (length <= 0.000001f) {
+        return Vector3f(0.0f, 0.0f, 0.0f);
+    }
+
+    return offset * (separationDistance / length);
+}
+
 static void RenderSceneCB()
 {
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
@@ -717,7 +810,10 @@ static void RenderSceneCB()
 
     glUseProgram(ShaderProgram);
 
+    UpdateGpuSliceUniforms();
+
     glUniformMatrix4fv(gWorldLocation, 1, GL_TRUE, &W.m[0][0]);
+    glUniformMatrix4fv(gClipWorldLocation, 1, GL_TRUE, &W.m[0][0]);
     // glUniformMatrix4fv(gWVPLocation, 1, GL_TRUE, &WVP.m[0][0]);
 
     glUniformMatrix4fv(gViewLocation, 1, GL_TRUE, &V.m[0][0]);
@@ -774,43 +870,127 @@ static void RenderSceneCB()
     // glDrawElements(GL_TRIANGLES, NumIndices, GL_UNSIGNED_INT, 0);
 
     if (SliceController.GetMode() == SliceMode::CPU) {
-    const SlicePlane& plane =
-        SliceController.GetPlanes().front();
+        const int activePlaneCount =
+            SliceController.GetPlaneCount();
 
-    const float halfDistance =
-        SliceController.GetSeparationDistance() * 0.5f;
+        if (activePlaneCount == 1) {
+            const SlicePlane& plane =
+                SliceController.GetPlanes().front();
 
-    const Vector3f positiveOffset =
-        plane.normal * halfDistance;
+            const float halfDistance =
+                SliceController.GetSeparationDistance() * 0.5f;
 
-    const Vector3f negativeOffset =
-        plane.normal * -halfDistance;
+            const Vector3f positiveOffset =
+                plane.normal * halfDistance;
 
-    const Matrix4f positiveTranslation =
-        CreateTranslationMatrix(positiveOffset);
+            const Vector3f negativeOffset =
+                plane.normal * -halfDistance;
 
-    const Matrix4f negativeTranslation =
-        CreateTranslationMatrix(negativeOffset);
+            const Matrix4f positiveTranslation =
+                CreateTranslationMatrix(positiveOffset);
 
-    const Matrix4f positiveWorld =
-        // W * positiveTranslation;
-        positiveTranslation * W;
+            const Matrix4f negativeTranslation =
+                CreateTranslationMatrix(negativeOffset);
 
-    const Matrix4f negativeWorld =
-        // W * negativeTranslation;
-        negativeTranslation * W;
+            DrawClippedMesh(
+                PositiveVAO,
+                PositiveClippedIndexCount,
+                GL_FILL,
+                positiveTranslation * W);
 
-    DrawClippedMesh(
-        PositiveVAO,
-        PositiveClippedIndexCount,
-        GL_FILL,
-        positiveWorld);
+            DrawClippedMesh(
+                NegativeVAO,
+                NegativeClippedIndexCount,
+                GL_LINE,
+                negativeTranslation * W);
+        }
+        else {
+            for (const RegionBuffers& region : PositiveRegionBuffers) {
+                const Vector3f regionOffset =
+                    CreateRegionOffset(region.mask);
 
-    DrawClippedMesh(
-        NegativeVAO,
-        NegativeClippedIndexCount,
-        GL_LINE,
-        negativeWorld);
+                DrawClippedMesh(
+                    region.vao,
+                    region.indexCount,
+                    GL_FILL,
+                    CreateTranslationMatrix(regionOffset) * W);
+            }
+        }
+    }
+    else if (SliceController.GetMode() == SliceMode::GPU) {
+        const int planeCount =
+            SliceController.GetPlaneCount();
+
+        const std::size_t regionCount =
+            std::size_t{1} << planeCount;
+
+        glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
+        glUniform1i(
+            gSliceDebugEnabledLocation,
+            GL_FALSE);
+
+        if (planeCount == 1) {
+            const float halfDistance =
+                SliceController.GetSeparationDistance() * 0.5f;
+
+            const Vector3f positiveOffset =
+                CreateRegionOffset(
+                    1,
+                    halfDistance);
+
+            const Vector3f negativeOffset =
+                CreateRegionOffset(
+                    0,
+                    halfDistance);
+
+            glUniform1i(
+                gGpuRegionMaskLocation,
+                1);
+
+            DrawClippedMesh(
+                VAO,
+                static_cast<GLsizei>(NumIndices),
+                GL_FILL,
+                CreateTranslationMatrix(positiveOffset) * W);
+
+            glUniform1i(
+                gGpuRegionMaskLocation,
+                0);
+
+            DrawClippedMesh(
+                VAO,
+                static_cast<GLsizei>(NumIndices),
+                GL_LINE,
+                CreateTranslationMatrix(negativeOffset) * W);
+        }
+        else {
+            for (std::size_t mask = 0;
+                 mask < regionCount;
+                 ++mask) {
+                const Vector3f regionOffset =
+                    CreateRegionOffset(mask);
+
+                const Matrix4f regionTranslation =
+                    CreateTranslationMatrix(regionOffset);
+
+                const Matrix4f regionWorld =
+                    regionTranslation * W;
+
+                glUniform1i(
+                    gGpuRegionMaskLocation,
+                    static_cast<GLint>(mask));
+
+                DrawClippedMesh(
+                    VAO,
+                    static_cast<GLsizei>(NumIndices),
+                    GL_FILL,
+                    regionWorld);
+            }
+        }
+
+        glUniform1i(
+            gGpuRegionMaskLocation,
+            0);
     }
     else {
         glBindBuffer(
@@ -1186,6 +1366,13 @@ static void CompileShaders()
     gWorldLocation = glGetUniformLocation(ShaderProgram, "gWorld");
     CheckUniformLocation(gWorldLocation,"gWorldLocation");
 
+    gClipWorldLocation = glGetUniformLocation(
+        ShaderProgram,
+        "gClipWorld");
+    CheckUniformLocation(
+        gClipWorldLocation,
+        "gClipWorld");
+
     // gWVPLocation = glGetUniformLocation(ShaderProgram, "gWVP");
     // CheckUniformLocation(gWVPLocation,"gWVPLocation");
 
@@ -1246,6 +1433,34 @@ static void CompileShaders()
     gSliceDebugColourLocation = glGetUniformLocation(ShaderProgram,"gSliceDebugColour");
     CheckUniformLocation(gSliceDebugColourLocation,"gSliceDebugColour");
 
+    gGpuSliceEnabledLocation = glGetUniformLocation(
+        ShaderProgram,
+        "gGpuSliceEnabled");
+    CheckUniformLocation(
+        gGpuSliceEnabledLocation,
+        "gGpuSliceEnabled");
+
+    gGpuPlaneCountLocation = glGetUniformLocation(
+        ShaderProgram,
+        "gGpuPlaneCount");
+    CheckUniformLocation(
+        gGpuPlaneCountLocation,
+        "gGpuPlaneCount");
+
+    gGpuPlanesLocation = glGetUniformLocation(
+        ShaderProgram,
+        "gGpuPlanes[0]");
+    CheckUniformLocation(
+        gGpuPlanesLocation,
+        "gGpuPlanes[0]");
+
+    gGpuRegionMaskLocation = glGetUniformLocation(
+        ShaderProgram,
+        "gGpuRegionMask");
+    CheckUniformLocation(
+        gGpuRegionMaskLocation,
+        "gGpuRegionMask");
+
     glValidateProgram(ShaderProgram);
     glGetProgramiv(ShaderProgram, GL_VALIDATE_STATUS, &Success);
     if (!Success) {
@@ -1296,6 +1511,18 @@ static void DeleteClippedMeshBuffers(
         glDeleteVertexArrays(1, &vao);
         vao = 0;
     }
+}
+
+static void DeleteRegionBuffers()
+{
+    for (RegionBuffers& buffers : PositiveRegionBuffers) {
+        DeleteClippedMeshBuffers(
+            buffers.vao,
+            buffers.vbo,
+            buffers.ibo);
+    }
+
+    PositiveRegionBuffers.clear();
 }
 
 static void CreateClippedMeshBuffers(
@@ -1413,8 +1640,55 @@ static void RebuildClippedMeshes(
         NegativeClippedIBO,
         NegativeClippedIndexCount);
 
-    SliceController.ClearGeometryDirty();
-    ModelTransformDirty = false;
+    DeleteClippedMeshBuffers(
+    CapVAO,
+    CapVBO,
+    CapIBO);
+
+    DeleteRegionBuffers();
+
+    CreateClippedMeshBuffers(
+        clippedMeshes.caps,
+        CapVAO,
+        CapVBO,
+        CapIBO,
+        CapIndexCount);
+
+    PositiveRegionBuffers.reserve(
+        clippedMeshes.positiveRegions.size());
+
+    for (std::size_t mask = 0;
+         mask < clippedMeshes.positiveRegions.size();
+         ++mask) {
+        const SliceMesh& region =
+            clippedMeshes.positiveRegions[mask];
+
+        if (region.indices.empty()) {
+            continue;
+        }
+
+        RegionBuffers buffers;
+        buffers.mask = mask;
+
+        CreateClippedMeshBuffers(
+            region,
+            buffers.vao,
+            buffers.vbo,
+            buffers.ibo,
+            buffers.indexCount);
+
+        PositiveRegionBuffers.push_back(buffers);
+    }
+
+    std::cout
+        << "[Caps] triangles="
+        << clippedMeshes.caps.indices.size() / 3
+        << ", vertices="
+        << clippedMeshes.caps.vertices.size()
+        << '\n';
+
+        SliceController.ClearGeometryDirty();
+        ModelTransformDirty = false;
 
     // std::cout
     //     << "Rebuilt CPU clipped meshes: "
@@ -1422,6 +1696,28 @@ static void RebuildClippedMeshes(
     //     << " positive triangles, "
     //     << clippedMeshes.negative.indices.size() / 3
     //     << " negative triangles\n";
+
+    std::cout
+        << "[CPU rebuild] planes="
+        << SliceController.GetPlaneCount()
+        << ", filled triangles="
+        << clippedMeshes.positive.indices.size() / 3
+        << ", wireframe triangles="
+        << clippedMeshes.negative.indices.size() / 3
+        << ", filled vertices="
+        << clippedMeshes.positive.vertices.size()
+        << ", wireframe vertices="
+        << clippedMeshes.negative.vertices.size()
+        << '\n';
+
+    std::cout
+        << "[Caps] indices="
+        << clippedMeshes.caps.indices.size()
+        << ", triangles="
+        << clippedMeshes.caps.indices.size() / 3
+        << ", vertices="
+        << clippedMeshes.caps.vertices.size()
+        << '\n';
 }
 
 static std::vector<SliceInputVertex>

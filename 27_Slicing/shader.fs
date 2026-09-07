@@ -2,6 +2,8 @@
 
 in vec3 ViewNormal;
 in vec3 ViewPosition;
+in vec3 ClipWorldPosition;
+in vec3 WorldPosition;
 
 in float VertexDepth;
 
@@ -28,6 +30,11 @@ uniform bool gSpecularEnabled;
 uniform bool gSliceDebugEnabled;
 uniform vec3 gSliceDebugColour;
 
+uniform bool gGpuSliceEnabled;
+uniform int gGpuPlaneCount;
+uniform int gGpuRegionMask;
+uniform vec4 gGpuPlanes[10];
+
 float CameraNear = 0.1;
 float CameraFar = 20.0;
 
@@ -38,6 +45,24 @@ float DisplayFar = gCenterZ + 1.0;
 
 void main()
 {
+
+    if (gGpuSliceEnabled) {
+        for (int planeIndex = 0;
+             planeIndex < gGpuPlaneCount;
+             ++planeIndex) {
+            float distance =
+                dot(gGpuPlanes[planeIndex].xyz, ClipWorldPosition) +
+                gGpuPlanes[planeIndex].w;
+
+            bool keepPositive =
+                (gGpuRegionMask & (1 << planeIndex)) != 0;
+
+            if ((keepPositive && distance < 0.0) ||
+                (!keepPositive && distance > 0.0)) {
+                discard;
+            }
+        }
+    }
 
     if (gSliceDebugEnabled) {
         FragColour = vec4(gSliceDebugColour, 1.0);

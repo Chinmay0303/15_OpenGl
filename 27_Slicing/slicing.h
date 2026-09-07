@@ -58,6 +58,8 @@ struct SliceMesh {
 struct ClippedMeshes {
     SliceMesh positive;
     SliceMesh negative;
+    SliceMesh caps;
+    std::vector<SliceMesh> positiveRegions;
 };
 
 class Slicing {
@@ -103,8 +105,14 @@ private:
     void ChangeSeparation(float amount);
 
     Vector3f CreateRandomNormal() const;
+    float CreateRandomPlaneOffset(
+        const Vector3f& normal) const;
     bool IsAcceptableNormal(
         const Vector3f& normal) const;
+
+    ClippedMeshes ClipMultiplePlanes(
+    const std::vector<SliceInputVertex>& vertices,
+    const std::vector<unsigned int>& indices) const;
 
     std::vector<SliceInputVertex> ClipPolygon(
         const std::vector<SliceInputVertex>& polygon,

@@ -2,7 +2,9 @@
 
 #include <cmath>
 #include <cstdlib>
+#include <functional>
 #include <iostream>
+#include <numeric>
 
 namespace {
 constexpr float SeparationStep = 0.05f;
@@ -86,6 +88,52 @@ Vector3f Cross(
         a.x * b.y - a.y * b.x);
 }
 
+Vector3f AnyPerpendicular(const Vector3f& normal)
+{
+    const Vector3f reference =
+        std::fabs(normal.x) < 0.9f
+            ? Vector3f(1.0f, 0.0f, 0.0f)
+            : Vector3f(0.0f, 1.0f, 0.0f);
+
+    return NormalizeVector(Cross(normal, reference));
+}
+
+float Cross2D(
+    const Vector2f& a,
+    const Vector2f& b,
+    const Vector2f& c)
+{
+    return (b.x - a.x) * (c.y - a.y) -
+           (b.y - a.y) * (c.x - a.x);
+}
+
+float PolygonArea(const std::vector<Vector2f>& polygon)
+{
+    float area = 0.0f;
+
+    for (std::size_t i = 0; i < polygon.size(); ++i) {
+        const Vector2f& current = polygon[i];
+        const Vector2f& next = polygon[(i + 1) % polygon.size()];
+        area += current.x * next.y - next.x * current.y;
+    }
+
+    return area * 0.5f;
+}
+
+bool PointInsideTriangle(
+    const Vector2f& point,
+    const Vector2f& a,
+    const Vector2f& b,
+    const Vector2f& c,
+    float winding)
+{
+    constexpr float Epsilon = 0.000001f;
+
+    return winding * Cross2D(a, b, point) >= -Epsilon &&
+           winding * Cross2D(b, c, point) >= -Epsilon &&
+           winding * Cross2D(c, a, point) >= -Epsilon;
+}
+
 constexpr float SegmentEpsilon = 0.00001f;
 constexpr float SegmentEpsilonSquared = SegmentEpsilon * SegmentEpsilon;
 
@@ -134,15 +182,36 @@ Vector3f Slicing::CreateRandomNormal() const
     Vector3f normal;
 
     do {
-        normal = Vector3f(
+        Vector3f normal1 = Vector3f(
             2.0f * static_cast<float>(rand()) / RAND_MAX - 1.0f,
             2.0f * static_cast<float>(rand()) / RAND_MAX - 1.0f,
-            2.0f * static_cast<float>(rand()) / RAND_MAX - 1.0f);
+            0.0f);
 
+        Vector3f normal2 = Vector3f(
+            2.0f * static_cast<float>(rand()) / RAND_MAX - 1.0f,
+            2.0f * static_cast<float>(rand()) / RAND_MAX - 1.0f,
+            0.0f);
+        
+        normal = normal1 - normal2;   
         normal = NormalizeVector(normal);
     } while (Dot(normal, normal) <= Epsilon);
 
     return normal;
+}
+
+float Slicing::CreateRandomPlaneOffset(
+    const Vector3f& normal) const
+{
+    constexpr float PlanePositionRange = 0.20f;
+
+    const Vector3f point(
+        (2.0f * static_cast<float>(rand()) / RAND_MAX - 1.0f) *
+            PlanePositionRange,
+        (2.0f * static_cast<float>(rand()) / RAND_MAX - 1.0f) *
+            PlanePositionRange,
+        0.0f);
+
+    return -Dot(normal, point);
 }
 
 bool Slicing::IsAcceptableNormal(
@@ -171,7 +240,7 @@ void Slicing::GeneratePlanes()
         if (IsAcceptableNormal(normal)) {
             planes.push_back({
                 normal,
-                0.0f
+                CreateRandomPlaneOffset(normal)
             });
         }
     }
@@ -205,6 +274,16 @@ void Slicing::SetPlaneCount(int count)
 
 void Slicing::ChangeSeparation(float amount)
 {
+    if (planeCount > 1) {
+        // separationDistance = 0.05f;
+        separationDistance = 0.05f;
+
+        std::cout
+            << "Separation disabled for multiple planes\n";
+
+        return;
+    }
+
     separationDistance += amount;
 
     if (separationDistance < MinimumSeparation) {
@@ -223,9 +302,13 @@ bool Slicing::HandleKey(unsigned char key)
     // 'c' is already used for face culling.
     case 'h':
     case 'H':
-        mode = mode == SliceMode::CPU
-            ? SliceMode::Disabled
-            : SliceMode::CPU;
+        if (mode == SliceMode::CPU) {
+            mode = SliceMode::Disabled;
+        }
+        else {
+            mode = SliceMode::CPU;
+            geometryDirty = true;
+        }
         break;
 
     case 'g':
@@ -520,80 +603,478 @@ void Slicing::AddCapForLoop(
     const std::vector<SliceInputVertex>& loop,
     const Vector3f& capNormal) const
 {
-if (loop.size() < 3) {
+    if (loop.size() < 3) {
         return;
     }
 
     Vector3f geometricNormal(0.0f, 0.0f, 0.0f);
 
-    for (std::size_t i = 1;
-         i + 1 < loop.size();
-         ++i) {
-        const Vector3f edge1 =
-            loop[i].vertex.position -
-            loop[0].vertex.position;
+    for (std::size_t i = 0; i < loop.size(); ++i) {
+        const Vector3f& current =
+            loop[i].vertex.position;
 
-        const Vector3f edge2 =
-            loop[i + 1].vertex.position -
-            loop[0].vertex.position;
+        const Vector3f& next =
+            loop[(i + 1) % loop.size()].vertex.position;
 
         geometricNormal += Cross(
-            edge1,
-            edge2);
+            current,
+            next);
     }
 
-    geometricNormal =
+    Vector3f finalNormal =
         NormalizeVector(geometricNormal);
-
-    // Preserve the requested cap orientation.
-    Vector3f finalNormal = geometricNormal;
-
-    if (Dot(
-            finalNormal,
-            capNormal) < 0.0f) {
+    if (Dot(finalNormal, capNormal) < 0.0f) {
         finalNormal = finalNormal * -1.0f;
     }
 
-    Vector3f center(0.0f, 0.0f, 0.0f);
+    if (Dot(finalNormal, finalNormal) <= Epsilon) {
+        return;
+    }
+
+    const Vector3f tangent = AnyPerpendicular(finalNormal);
+    const Vector3f bitangent = Cross(finalNormal, tangent);
+
+    std::vector<Vector2f> projected;
+    projected.reserve(loop.size());
 
     for (const SliceInputVertex& point : loop) {
-        center += point.vertex.position;
+        const Vector3f& position = point.vertex.position;
+
+        projected.emplace_back(
+            Vector2f(
+                Dot(position, tangent),
+                Dot(position, bitangent)));
     }
 
-    center = center *
-        (1.0f / static_cast<float>(loop.size()));
+    const float signedArea = PolygonArea(projected);
 
-    SliceVertex centerVertex;
-    centerVertex.position = center;
-    centerVertex.colour = Vector3f(1.0f, 1.0f, 1.0f);
-    centerVertex.normal = finalNormal;
-
-    const unsigned int centerIndex =
-        static_cast<unsigned int>(mesh.vertices.size());
-
-    mesh.vertices.push_back(centerVertex);
-
-    std::vector<unsigned int> loopIndices;
-    loopIndices.reserve(loop.size());
-
-    for (const SliceInputVertex& point : loop) {
-        SliceVertex capVertex = point.vertex;
-        capVertex.normal = capNormal;
-
-        loopIndices.push_back(
-            static_cast<unsigned int>(mesh.vertices.size()));
-
-        mesh.vertices.push_back(capVertex);
+    if (std::fabs(signedArea) <= Epsilon) {
+        return;
     }
 
-    for (std::size_t i = 0; i < loopIndices.size(); ++i) {
-        const std::size_t next =
-            (i + 1) % loopIndices.size();
+    const float winding = signedArea > 0.0f ? 1.0f : -1.0f;
 
-        mesh.indices.push_back(centerIndex);
-        mesh.indices.push_back(loopIndices[i]);
-        mesh.indices.push_back(loopIndices[next]);
+    std::vector<std::size_t> remaining;
+    remaining.reserve(loop.size());
+
+    for (std::size_t i = 0; i < loop.size(); ++i) {
+        remaining.push_back(i);
     }
+
+    while (remaining.size() > 3) {
+        bool earFound = false;
+
+        for (std::size_t i = 0; i < remaining.size(); ++i) {
+            const std::size_t previous =
+                remaining[(i + remaining.size() - 1) % remaining.size()];
+            const std::size_t current = remaining[i];
+            const std::size_t next =
+                remaining[(i + 1) % remaining.size()];
+
+            if (winding * Cross2D(
+                    projected[previous],
+                    projected[current],
+                    projected[next]) <= Epsilon) {
+                continue;
+            }
+
+            bool containsPoint = false;
+
+            for (const std::size_t candidate : remaining) {
+                if (candidate == previous ||
+                    candidate == current ||
+                    candidate == next) {
+                    continue;
+                }
+
+                if (PointInsideTriangle(
+                        projected[candidate],
+                        projected[previous],
+                        projected[current],
+                        projected[next],
+                        winding)) {
+                    containsPoint = true;
+                    break;
+                }
+            }
+
+            if (containsPoint) {
+                continue;
+            }
+
+            const unsigned int baseIndex =
+                static_cast<unsigned int>(mesh.vertices.size());
+
+            SliceVertex first = loop[previous].vertex;
+            SliceVertex second = loop[current].vertex;
+            SliceVertex third = loop[next].vertex;
+
+            first.normal = finalNormal;
+            second.normal = finalNormal;
+            third.normal = finalNormal;
+
+            mesh.vertices.push_back(first);
+            mesh.vertices.push_back(second);
+            mesh.vertices.push_back(third);
+
+            mesh.indices.push_back(baseIndex);
+            mesh.indices.push_back(baseIndex + 1);
+            mesh.indices.push_back(baseIndex + 2);
+
+            remaining.erase(remaining.begin() + i);
+            earFound = true;
+            break;
+        }
+
+        if (!earFound) {
+            return;
+        }
+    }
+
+    if (remaining.size() == 3) {
+        const unsigned int baseIndex =
+            static_cast<unsigned int>(mesh.vertices.size());
+
+        SliceVertex first = loop[remaining[0]].vertex;
+        SliceVertex second = loop[remaining[1]].vertex;
+        SliceVertex third = loop[remaining[2]].vertex;
+
+        first.normal = finalNormal;
+        second.normal = finalNormal;
+        third.normal = finalNormal;
+
+        mesh.vertices.push_back(first);
+        mesh.vertices.push_back(second);
+        mesh.vertices.push_back(third);
+
+        mesh.indices.push_back(baseIndex);
+        mesh.indices.push_back(baseIndex + 1);
+        mesh.indices.push_back(baseIndex + 2);
+    }
+}
+
+ClippedMeshes Slicing::ClipMultiplePlanes(
+    const std::vector<SliceInputVertex>& vertices,
+    const std::vector<unsigned int>& indices) const
+{
+    ClippedMeshes result;
+
+    if (planes.empty()) {
+        return result;
+    }
+
+    const std::size_t planeCountValue =
+        planes.size();
+
+    const std::size_t regionCount =
+        std::size_t{1} << planeCountValue;
+
+    // One independent mesh for each sign-mask region.
+    std::vector<SliceMesh> regionMeshes(regionCount);
+
+    // One segment list for each plane and region.
+    //
+    // A segment stored under [planeIndex, mask] belongs to the
+    // boundary of that region on that plane.
+    std::vector<std::vector<SliceSegment>>
+        boundarySegments(
+            planeCountValue * regionCount);
+
+    auto segmentList = [&](std::size_t planeIndex,
+                           std::size_t mask)
+        -> std::vector<SliceSegment>&
+    {
+        return boundarySegments[
+            planeIndex * regionCount + mask];
+    };
+
+    auto addUniquePoint =
+        [this](
+            std::vector<SliceInputVertex>& points,
+            const SliceInputVertex& point)
+    {
+        for (const SliceInputVertex& existing : points) {
+            if (NearlyEqual(
+                    existing.planePosition,
+                    point.planePosition)) {
+                return;
+            }
+        }
+
+        points.push_back(point);
+    };
+
+    // ------------------------------------------------------------
+    // Clip every triangle into every possible sign-mask region.
+    // ------------------------------------------------------------
+    for (std::size_t triangleIndex = 0;
+         triangleIndex + 2 < indices.size();
+         triangleIndex += 3) {
+
+        const unsigned int index0 =
+            indices[triangleIndex];
+
+        const unsigned int index1 =
+            indices[triangleIndex + 1];
+
+        const unsigned int index2 =
+            indices[triangleIndex + 2];
+
+        if (index0 >= vertices.size() ||
+            index1 >= vertices.size() ||
+            index2 >= vertices.size()) {
+            continue;
+        }
+
+        const std::vector<SliceInputVertex> triangle{
+            vertices[index0],
+            vertices[index1],
+            vertices[index2]
+        };
+
+        std::function<void(
+            std::size_t,
+            std::size_t,
+            const std::vector<SliceInputVertex>&)> visitRegion;
+
+        visitRegion = [&, this](
+            std::size_t planeIndex,
+            std::size_t mask,
+            const std::vector<SliceInputVertex>& polygon)
+        {
+            if (polygon.size() < 3) {
+                return;
+            }
+
+            if (planeIndex == planeCountValue) {
+                AddPolygon(
+                    regionMeshes[mask],
+                    polygon);
+
+                for (std::size_t boundaryPlane = 0;
+                     boundaryPlane < planeCountValue;
+                     ++boundaryPlane) {
+                    std::vector<SliceInputVertex>
+                        boundaryPoints;
+
+                    for (const SliceInputVertex& point : polygon) {
+                        const float distance =
+                            DistanceToPlane(
+                                planes[boundaryPlane],
+                                point.planePosition);
+
+                        if (std::fabs(distance) <= PlaneEpsilon) {
+                            addUniquePoint(
+                                boundaryPoints,
+                                point);
+                        }
+                    }
+
+                    if (boundaryPoints.size() == 2) {
+                        segmentList(
+                            boundaryPlane,
+                            mask).push_back({
+                                boundaryPoints[0],
+                                boundaryPoints[1]
+                            });
+                    }
+                }
+
+                return;
+            }
+
+            const std::size_t planeBit =
+                std::size_t{1} << planeIndex;
+
+            const std::vector<SliceInputVertex> positivePolygon =
+                ClipPolygon(
+                    polygon,
+                    planes[planeIndex],
+                    true);
+
+            visitRegion(
+                planeIndex + 1,
+                mask | planeBit,
+                positivePolygon);
+
+            const std::vector<SliceInputVertex> negativePolygon =
+                ClipPolygon(
+                    polygon,
+                    planes[planeIndex],
+                    false);
+
+            visitRegion(
+                planeIndex + 1,
+                mask,
+                negativePolygon);
+        };
+
+        visitRegion(0, 0, triangle);
+    }
+
+    std::size_t capCount = 0;
+
+    // ------------------------------------------------------------
+    // Connect segments into loops and cap both adjacent regions.
+    // ------------------------------------------------------------
+    for (std::size_t planeIndex = 0;
+         planeIndex < planeCountValue;
+         ++planeIndex) {
+
+        const SlicePlane& plane =
+            planes[planeIndex];
+
+        // Process only masks whose plane bit is positive.
+        // The adjacent negative region is mask with that bit cleared.
+        for (std::size_t mask = 0;
+             mask < regionCount;
+             ++mask) {
+
+            const std::size_t planeBit =
+                std::size_t{1} << planeIndex;
+
+            if ((mask & planeBit) == 0) {
+                continue;
+            }
+
+            std::vector<SliceSegment>& segments =
+                segmentList(planeIndex, mask);
+
+            std::vector<bool> used(
+                segments.size(),
+                false);
+
+            for (std::size_t start = 0;
+                 start < segments.size();
+                 ++start) {
+
+                if (used[start]) {
+                    continue;
+                }
+
+                std::vector<SliceInputVertex> loop;
+
+                loop.push_back(segments[start].start);
+                loop.push_back(segments[start].end);
+
+                used[start] = true;
+
+                Vector3f currentPoint =
+                    segments[start].end.planePosition;
+
+                bool closed = false;
+
+                while (!closed) {
+                    bool foundNext = false;
+
+                    for (std::size_t i = 0;
+                         i < segments.size();
+                         ++i) {
+
+                        if (used[i]) {
+                            continue;
+                        }
+
+                        const bool matchesStart =
+                            NearlyEqual(
+                                currentPoint,
+                                segments[i].start.planePosition);
+
+                        const bool matchesEnd =
+                            NearlyEqual(
+                                currentPoint,
+                                segments[i].end.planePosition);
+
+                        if (!matchesStart && !matchesEnd) {
+                            continue;
+                        }
+
+                        const SliceInputVertex& nextPoint =
+                            matchesStart
+                                ? segments[i].end
+                                : segments[i].start;
+
+                        loop.push_back(nextPoint);
+
+                        currentPoint =
+                            nextPoint.planePosition;
+
+                        used[i] = true;
+                        foundNext = true;
+                        break;
+                    }
+
+                    if (NearlyEqual(
+                            currentPoint,
+                            loop.front().planePosition)) {
+                        closed = true;
+                    }
+                    else if (!foundNext) {
+                        break;
+                    }
+                }
+
+                if (!closed || loop.size() < 4) {
+                    continue;
+                }
+
+                // Remove duplicate closing point.
+                loop.pop_back();
+
+                const std::size_t negativeMask =
+                    mask ^ planeBit;
+
+                // Positive side of this plane.
+                AddCapForLoop(
+                    regionMeshes[mask],
+                    loop,
+                    plane.normal);
+
+                // Negative side of this plane.
+                std::vector<SliceInputVertex> reversedLoop(
+                    loop.rbegin(),
+                    loop.rend());
+
+                AddCapForLoop(
+                    regionMeshes[negativeMask],
+                    reversedLoop,
+                    plane.normal * -1.0f);
+                
+                ++capCount;
+            }
+        }
+    }
+
+    std::size_t nonEmptyRegionCount = 0;
+
+    for (const SliceMesh& regionMesh : regionMeshes) {
+        if (!regionMesh.indices.empty()) {
+            ++nonEmptyRegionCount;
+        }
+    }
+
+    result.positiveRegions = std::move(regionMeshes);
+
+    std::cout
+        << "[Multi-plane CPU] planes="
+        << planeCountValue
+        << ", regions="
+        << nonEmptyRegionCount
+        << "/"
+        << regionCount
+        << ", caps="
+        << capCount
+        << ", triangles="
+        << std::accumulate(
+            result.positiveRegions.begin(),
+            result.positiveRegions.end(),
+            std::size_t{0},
+            [](std::size_t total, const SliceMesh& mesh) {
+                return total + mesh.indices.size() / 3;
+            })
+        << '\n';
+
+    return result;
 }
 
 ClippedMeshes Slicing::ClipMesh(
@@ -604,6 +1085,12 @@ ClippedMeshes Slicing::ClipMesh(
 
     if (planes.empty()) {
         return result;
+    }
+
+    if (planes.size() > 1) {
+        return ClipMultiplePlanes(
+            vertices,
+            indices);
     }
 
     const SlicePlane& plane = planes.front();
@@ -642,7 +1129,7 @@ ClippedMeshes Slicing::ClipMesh(
             vertices[index2]
         };
 
-        // Check the three triangle edges.
+        // Check the three triangle edges, including vertices already on the plane.
         for (int edge = 0; edge < 3; ++edge) {
             const SliceInputVertex& a =
                 triangleVertices[edge];
@@ -659,6 +1146,12 @@ ClippedMeshes Slicing::ClipMesh(
                 DistanceToPlane(
                     plane,
                     b.planePosition);
+
+            if (std::fabs(distanceA) <= PlaneEpsilon) {
+                AddIntersectionPoint(
+                    intersectionPoints,
+                    a);
+            }
 
             const bool crosses =
                 (distanceA > PlaneEpsilon &&
