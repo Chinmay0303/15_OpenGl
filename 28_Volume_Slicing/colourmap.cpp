@@ -9,7 +9,7 @@ struct ColorPoint {
     Vector3f rgb;
 };
 
-static const ColorPoint* GetControlPoints(int& count) {
+static const ColorPoint* GetDivergentPoints(int& count) {
     static const ColorPoint points[] = {
         { 0.0f,      Vector3f(0.0862745098039216f, 0.00392156862745098f, 0.298039215686275f) },
         { 0.030334f, Vector3f(0.113725f,           0.0235294f,           0.45098f) },
@@ -63,6 +63,31 @@ static const ColorPoint* GetControlPoints(int& count) {
     return points;
 }
 
+static const ColorPoint* GetGrayscalePoints(int& count) {
+    static const ColorPoint points[] = {
+        { 0.0f, Vector3f(0.0f, 0.0f, 0.0f) },
+        { 1.0f, Vector3f(1.0f, 1.0f, 1.0f) }
+    };
+    count = static_cast<int>(sizeof(points) / sizeof(points[0]));
+    return points;
+}
+
+static const ColorPoint* GetViridisPoints(int& count) {
+    static const ColorPoint points[] = {
+        { 0.000f, Vector3f(0.267f, 0.004f, 0.329f) },
+        { 0.125f, Vector3f(0.282f, 0.165f, 0.467f) },
+        { 0.250f, Vector3f(0.191f, 0.407f, 0.556f) },
+        { 0.375f, Vector3f(0.122f, 0.533f, 0.537f) },
+        { 0.500f, Vector3f(0.128f, 0.567f, 0.551f) },
+        { 0.625f, Vector3f(0.208f, 0.718f, 0.473f) },
+        { 0.750f, Vector3f(0.369f, 0.789f, 0.383f) },
+        { 0.875f, Vector3f(0.682f, 0.812f, 0.208f) },
+        { 1.000f, Vector3f(0.993f, 0.906f, 0.144f) }
+    };
+    count = static_cast<int>(sizeof(points) / sizeof(points[0]));
+    return points;
+}
+
 static inline float lerp1f(float a, float b, float t) {
     return a + t * (b - a);
 }
@@ -74,7 +99,19 @@ static Vector3f LerpColor(const Vector3f& a, const Vector3f& b, float t) {
 void Colourmap::Rebuild()
 {
     int count = 0;
-    const ColorPoint* points = GetControlPoints(count);
+    const ColorPoint* points = nullptr;
+
+    switch (currentType_) {
+        case MapType::DIVERGENT_1:
+            points = GetDivergentPoints(count);
+            break;
+        case MapType::GRAYSCALE:
+            points = GetGrayscalePoints(count);
+            break;
+        case MapType::VIRIDIS:
+            points = GetViridisPoints(count);
+            break;
+    }
 
     for (int i = 0; i < ColormapSize; ++i) {
         float t = static_cast<float>(i) / (ColormapSize - 1.0f); // [0, 1]
@@ -99,9 +136,34 @@ void Colourmap::Rebuild()
     }
 }
 
-Colourmap::Colourmap()
+Colourmap::Colourmap(MapType type)
+    : currentType_(type)
 {
     Rebuild();
+}
+
+void Colourmap::SetType(MapType type)
+{
+    if (currentType_ != type) {
+        currentType_ = type;
+        Rebuild();
+    }
+}
+
+const char* Colourmap::GetTypeName() const
+{
+    switch (currentType_) {
+        case MapType::DIVERGENT_1: return "Divergent 1";
+        case MapType::GRAYSCALE:   return "Grayscale";
+        case MapType::VIRIDIS:     return "Viridis";
+    }
+    return "Unknown";
+}
+
+void Colourmap::CycleType()
+{
+    int next = (static_cast<int>(currentType_) + 1) % 3;
+    SetType(static_cast<MapType>(next));
 }
 
 Vector3f Colourmap::Lookup(float s) const
@@ -143,5 +205,26 @@ unsigned int Colourmap::CreateGLTexture1D() const
     glBindTexture(GL_TEXTURE_1D, 0);
 
     return tex;
+}
+
+void Colourmap::UpdateGLTexture1D(unsigned int textureId) const
+{
+    if (textureId == 0) return;
+
+    std::vector<unsigned char> rgba(ColormapSize * 4);
+    for (int i = 0; i < ColormapSize; ++i) {
+        float r = std::clamp(table_[i].x, 0.0f, 1.0f);
+        float g = std::clamp(table_[i].y, 0.0f, 1.0f);
+        float b = std::clamp(table_[i].z, 0.0f, 1.0f);
+        rgba[i * 4 + 0] = static_cast<unsigned char>(std::round(r * 255.0f));
+        rgba[i * 4 + 1] = static_cast<unsigned char>(std::round(g * 255.0f));
+        rgba[i * 4 + 2] = static_cast<unsigned char>(std::round(b * 255.0f));
+        rgba[i * 4 + 3] = 255;
+    }
+
+    glBindTexture(GL_TEXTURE_1D, textureId);
+    glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
+    glTexSubImage1D(GL_TEXTURE_1D, 0, 0, ColormapSize, GL_RGBA, GL_UNSIGNED_BYTE, rgba.data());
+    glBindTexture(GL_TEXTURE_1D, 0);
 }
 

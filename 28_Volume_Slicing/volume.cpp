@@ -5,10 +5,6 @@
 #include <cmath>
 #include <algorithm>
 #include <iostream>
-#include <cstdint>
-#include <cstdio>
-
-
 
 bool Volume::LoadRaw(const std::string& path,
                       int nx_, int ny_, int nz_,

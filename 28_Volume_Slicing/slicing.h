@@ -46,6 +46,9 @@ public:
     bool IsVisible(SliceAxis axis) const;
     void SetVisible(SliceAxis axis, bool v);
 
+    int GetStepVoxels() const { return stepVoxels; }
+    void SetStepVoxels(int s) { stepVoxels = (s > 0) ? s : 1; }
+
     int GetSliceIndex(SliceAxis axis, const Volume& volume) const;
 
     SliceImage BuildSliceImage(const Volume& volume, const Colourmap& colormap, SliceAxis axis) const;
@@ -54,6 +57,7 @@ public:
     static const std::vector<unsigned int>& GetQuadIndices();
 
 private:
+    int stepVoxels = 1;
     float position[3]; // normalized t in [0, 1], default 0.5
     bool visible[3];   // default true
     bool dirty[3];     // default true

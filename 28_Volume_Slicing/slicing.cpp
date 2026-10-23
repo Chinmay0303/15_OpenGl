@@ -21,59 +21,24 @@ Slicing::Slicing()
 
 bool Slicing::HandleKey(unsigned char key, const Volume& volume)
 {
-    constexpr int SliceStepVoxels = 1;
+    auto stepAxis = [&](int axis, int n, int direction) {
+        float step = (n > 1) ? static_cast<float>(direction * stepVoxels) / (n - 1) : 0.0f;
+        position[axis] = std::clamp(position[axis] + step, 0.0f, 1.0f);
+        dirty[axis] = true;
+        return true;
+    };
 
     switch (key) {
-        case 'x': {
-            float step = (volume.nx > 1) ? static_cast<float>(SliceStepVoxels) / (volume.nx - 1) : 0.0f;
-            position[0] = std::clamp(position[0] - step, 0.0f, 1.0f);
-            dirty[0] = true;
-            return true;
-        }
-        case 'X': {
-            float step = (volume.nx > 1) ? static_cast<float>(SliceStepVoxels) / (volume.nx - 1) : 0.0f;
-            position[0] = std::clamp(position[0] + step, 0.0f, 1.0f);
-            dirty[0] = true;
-            return true;
-        }
-        case 'y': {
-            float step = (volume.ny > 1) ? static_cast<float>(SliceStepVoxels) / (volume.ny - 1) : 0.0f;
-            position[1] = std::clamp(position[1] - step, 0.0f, 1.0f);
-            dirty[1] = true;
-            return true;
-        }
-        case 'Y': {
-            float step = (volume.ny > 1) ? static_cast<float>(SliceStepVoxels) / (volume.ny - 1) : 0.0f;
-            position[1] = std::clamp(position[1] + step, 0.0f, 1.0f);
-            dirty[1] = true;
-            return true;
-        }
-        case 'z': {
-            float step = (volume.nz > 1) ? static_cast<float>(SliceStepVoxels) / (volume.nz - 1) : 0.0f;
-            position[2] = std::clamp(position[2] - step, 0.0f, 1.0f);
-            dirty[2] = true;
-            return true;
-        }
-        case 'Z': {
-            float step = (volume.nz > 1) ? static_cast<float>(SliceStepVoxels) / (volume.nz - 1) : 0.0f;
-            position[2] = std::clamp(position[2] + step, 0.0f, 1.0f);
-            dirty[2] = true;
-            return true;
-        }
-        case '7': {
-            visible[0] = !visible[0];
-            return true;
-        }
-        case '8': {
-            visible[1] = !visible[1];
-            return true;
-        }
-        case '9': {
-            visible[2] = !visible[2];
-            return true;
-        }
-        default:
-            return false;
+        case 'x': return stepAxis(0, volume.nx, -1);
+        case 'X': return stepAxis(0, volume.nx, +1);
+        case 'y': return stepAxis(1, volume.ny, -1);
+        case 'Y': return stepAxis(1, volume.ny, +1);
+        case 'z': return stepAxis(2, volume.nz, -1);
+        case 'Z': return stepAxis(2, volume.nz, +1);
+        case '7': visible[0] = !visible[0]; return true;
+        case '8': visible[1] = !visible[1]; return true;
+        case '9': visible[2] = !visible[2]; return true;
+        default:  return false;
     }
 }
 
@@ -123,70 +88,43 @@ int Slicing::GetSliceIndex(SliceAxis axis, const Volume& volume) const
 SliceImage Slicing::BuildSliceImage(const Volume& volume, const Colourmap& colormap, SliceAxis axis) const
 {
     SliceImage img;
+    float fixedCoord = 0.0f;
 
-    if (axis == SliceAxis::Z) {
-        // Z: XY plane, fixed z = t*(nz-1). Image w = nx, h = ny
-        img.width = volume.nx;
-        img.height = volume.ny;
-        img.pixels.resize(img.width * img.height * 4);
+    switch (axis) {
+        case SliceAxis::X: // YZ plane: fixed x, u=y, v=z
+            img.width = volume.ny;
+            img.height = volume.nz;
+            fixedCoord = position[0] * (volume.nx - 1.0f);
+            break;
+        case SliceAxis::Y: // ZX plane: fixed y, u=z, v=x
+            img.width = volume.nz;
+            img.height = volume.nx;
+            fixedCoord = position[1] * (volume.ny - 1.0f);
+            break;
+        case SliceAxis::Z: // XY plane: fixed z, u=x, v=y
+            img.width = volume.nx;
+            img.height = volume.ny;
+            fixedCoord = position[2] * (volume.nz - 1.0f);
+            break;
+    }
 
-        float zCoord = position[2] * (volume.nz - 1.0f);
-        unsigned char* p = img.pixels.data();
+    img.pixels.resize(img.width * img.height * 4);
+    unsigned char* p = img.pixels.data();
 
-        for (int j = 0; j < img.height; ++j) {
-            float yCoord = static_cast<float>(j);
-            for (int i = 0; i < img.width; ++i) {
-                float xCoord = static_cast<float>(i);
-                float s = volume.Sample(xCoord, yCoord, zCoord);
-                Vector3f rgb = colormap.Lookup(s);
-                *p++ = static_cast<unsigned char>(std::clamp(std::round(rgb.x * 255.0f), 0.0f, 255.0f));
-                *p++ = static_cast<unsigned char>(std::clamp(std::round(rgb.y * 255.0f), 0.0f, 255.0f));
-                *p++ = static_cast<unsigned char>(std::clamp(std::round(rgb.z * 255.0f), 0.0f, 255.0f));
-                *p++ = 255;
-            }
-        }
-    } else if (axis == SliceAxis::X) {
-        // X: YZ plane, fixed x = t*(nx-1). Image w = ny, h = nz
-        img.width = volume.ny;
-        img.height = volume.nz;
-        img.pixels.resize(img.width * img.height * 4);
+    for (int j = 0; j < img.height; ++j) {
+        float vj = static_cast<float>(j);
+        for (int i = 0; i < img.width; ++i) {
+            float ui = static_cast<float>(i);
+            float x = (axis == SliceAxis::X) ? fixedCoord : ((axis == SliceAxis::Y) ? vj : ui);
+            float y = (axis == SliceAxis::Y) ? fixedCoord : ((axis == SliceAxis::X) ? ui : vj);
+            float z = (axis == SliceAxis::Z) ? fixedCoord : ((axis == SliceAxis::X) ? vj : ui);
 
-        float xCoord = position[0] * (volume.nx - 1.0f);
-        unsigned char* p = img.pixels.data();
-
-        for (int j = 0; j < img.height; ++j) {
-            float zCoord = static_cast<float>(j);
-            for (int i = 0; i < img.width; ++i) {
-                float yCoord = static_cast<float>(i);
-                float s = volume.Sample(xCoord, yCoord, zCoord);
-                Vector3f rgb = colormap.Lookup(s);
-                *p++ = static_cast<unsigned char>(std::clamp(std::round(rgb.x * 255.0f), 0.0f, 255.0f));
-                *p++ = static_cast<unsigned char>(std::clamp(std::round(rgb.y * 255.0f), 0.0f, 255.0f));
-                *p++ = static_cast<unsigned char>(std::clamp(std::round(rgb.z * 255.0f), 0.0f, 255.0f));
-                *p++ = 255;
-            }
-        }
-    } else { // SliceAxis::Y
-        // Y: ZX plane, fixed y = t*(ny-1). Image w = nz, h = nx
-        // Spec table: Pixel (i, j) samples voxel (j, t*(ny-1), i)
-        img.width = volume.nz;
-        img.height = volume.nx;
-        img.pixels.resize(img.width * img.height * 4);
-
-        float yCoord = position[1] * (volume.ny - 1.0f);
-        unsigned char* p = img.pixels.data();
-
-        for (int j = 0; j < img.height; ++j) {
-            float xCoord = static_cast<float>(j);
-            for (int i = 0; i < img.width; ++i) {
-                float zCoord = static_cast<float>(i);
-                float s = volume.Sample(xCoord, yCoord, zCoord);
-                Vector3f rgb = colormap.Lookup(s);
-                *p++ = static_cast<unsigned char>(std::clamp(std::round(rgb.x * 255.0f), 0.0f, 255.0f));
-                *p++ = static_cast<unsigned char>(std::clamp(std::round(rgb.y * 255.0f), 0.0f, 255.0f));
-                *p++ = static_cast<unsigned char>(std::clamp(std::round(rgb.z * 255.0f), 0.0f, 255.0f));
-                *p++ = 255;
-            }
+            float s = volume.Sample(x, y, z);
+            Vector3f rgb = colormap.Lookup(s);
+            *p++ = static_cast<unsigned char>(std::clamp(std::round(rgb.x * 255.0f), 0.0f, 255.0f));
+            *p++ = static_cast<unsigned char>(std::clamp(std::round(rgb.y * 255.0f), 0.0f, 255.0f));
+            *p++ = static_cast<unsigned char>(std::clamp(std::round(rgb.z * 255.0f), 0.0f, 255.0f));
+            *p++ = 255;
         }
     }
 

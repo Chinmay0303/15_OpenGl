@@ -15,11 +15,6 @@ public:
     bool LoadRaw(const std::string& path, int nx, int ny, int nz,
                  float sx = 1.0f, float sy = 1.0f, float sz = 1.0f);
 
-    bool LoadUint8(const std::string& path, int nx, int ny, int nz,
-                   float sx = 1.0f, float sy = 1.0f, float sz = 1.0f) {
-        return LoadRaw(path, nx, ny, nz, sx, sy, sz);
-    }
-
     // Synthetic datasets (dims 64 x 48 x 32 by default):
     // "ramp", "sphere", "corner"
     void CreateSynthetic(const std::string& name, int nx = 64, int ny = 48, int nz = 32);
