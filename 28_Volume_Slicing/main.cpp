@@ -54,14 +54,15 @@ static const bool  ENABLE_HUD_OVERLAY        = true; // Show on-screen 2D HUD te
 struct PlaneColorConfig {
     const char* colorName;
     const char* planeName;
+    const char* anatomicalName;
     Vector3f color;
 };
 
 // Single source of truth for plane color coding (HUD, outlines, controls)
 static const PlaneColorConfig PLANE_CONFIGS[3] = {
-    { "Red",   "YZ", Vector3f(1.0f, 0.35f, 0.35f) }, // Axis 0: X
-    { "Green", "ZX", Vector3f(0.35f, 1.0f, 0.35f) }, // Axis 1: Y
-    { "Blue",  "XY", Vector3f(0.35f, 0.75f, 1.0f) }  // Axis 2: Z
+    { "Red",   "YZ", "Sagittal", Vector3f(1.0f, 0.35f, 0.35f) }, // Axis 0: X (fixed x, Sagittal: divides Left / Right)
+    { "Green", "ZX", "Axial",    Vector3f(0.35f, 1.0f, 0.35f) }, // Axis 1: Y (fixed y, Axial: divides Top / Bottom)
+    { "Blue",  "XY", "Coronal",  Vector3f(0.35f, 0.75f, 1.0f) }  // Axis 2: Z (fixed z, Coronal: divides Front / Back)
 };
 
 // 4. Slicing Interaction Parameters
@@ -94,6 +95,11 @@ static char BENCHMARK_AXIS                 = 'Z';   // 'X', 'Y', or 'Z'
 
 static float WINDOW_WIDTH  = 1920.0f;
 static float WINDOW_HEIGHT = 1080.0f;
+static int   WindowedWidth = 1920;
+static int   WindowedHeight = 1080;
+static bool  IsFullScreen = false;
+static int   WindowPositionX = 50;
+static int   WindowPositionY = 50;
 static const char* TheProgramTitle = "Assignment 2 - Task 1: Volume Slicing";
 
 static World ModelWorld;
@@ -144,7 +150,6 @@ static GLuint gColormap1DTexture = 0;
 
 static int gFpsFrameCount = 0;
 static float gFPS = 0.0f;
-static float gFrameTimeMs = 0.0f;
 static auto gLastFpsTime = std::chrono::high_resolution_clock::now();
 static auto gLastFrameTime = std::chrono::high_resolution_clock::now();
 
@@ -175,10 +180,6 @@ static void UpdateTextureFiltering()
         glBindTexture(GL_TEXTURE_3D, 0);
     }
 }
-
-static bool IsFullScreen = false;
-static int WindowPositionX = 50;
-static int WindowPositionY = 50;
 
 static void CheckGLError(const char* label)
 {
@@ -303,19 +304,20 @@ static void PrintControls()
     std::cout << "   f / F       : Toggle texture filtering (Linear / Nearest)\n";
     std::cout << "   b / B       : Run " << BENCHMARK_STEP_COUNT << "-step slicing benchmark (reports FPS & latency)\n\n";
     std::cout << " Slices:\n";
-    std::cout << "   x / X       : Move X slice - / + " << SliceController.GetStepVoxels() << " voxel(s) (" << PLANE_CONFIGS[0].colorName << " / " << PLANE_CONFIGS[0].planeName << " plane)\n";
-    std::cout << "   y / Y       : Move Y slice - / + " << SliceController.GetStepVoxels() << " voxel(s) (" << PLANE_CONFIGS[1].colorName << " / " << PLANE_CONFIGS[1].planeName << " plane)\n";
-    std::cout << "   z / Z       : Move Z slice - / + " << SliceController.GetStepVoxels() << " voxel(s) (" << PLANE_CONFIGS[2].colorName << " / " << PLANE_CONFIGS[2].planeName << " plane)\n";
+    std::cout << "   x / X       : Move X slice - / + " << SliceController.GetStepVoxels() << " voxel(s) (" << PLANE_CONFIGS[0].colorName << " / " << PLANE_CONFIGS[0].planeName << " / " << PLANE_CONFIGS[0].anatomicalName << ")\n";
+    std::cout << "   y / Y       : Move Y slice - / + " << SliceController.GetStepVoxels() << " voxel(s) (" << PLANE_CONFIGS[1].colorName << " / " << PLANE_CONFIGS[1].planeName << " / " << PLANE_CONFIGS[1].anatomicalName << ")\n";
+    std::cout << "   z / Z       : Move Z slice - / + " << SliceController.GetStepVoxels() << " voxel(s) (" << PLANE_CONFIGS[2].colorName << " / " << PLANE_CONFIGS[2].planeName << " / " << PLANE_CONFIGS[2].anatomicalName << ")\n";
     std::cout << "   7 / 8 / 9   : Toggle visibility of X / Y / Z slice\n\n";
-    std::cout << " Model Rotation:\n";
+    std::cout << " Model Rotation (3D Composite View):\n";
     std::cout << "   1 / 2       : Rotate around X axis (+ / -)\n";
     std::cout << "   3 / 4       : Rotate around Y axis (+ / -)\n";
     std::cout << "   5 / 6       : Rotate around Z axis (+ / -)\n";
-    std::cout << "   0           : Reset model transform\n\n";
+    std::cout << "   0           : Reset model transform\n";
+    std::cout << "   (Note: in 3-Panel Tiled view, panels remain in canonical face-on orientation)\n\n";
     std::cout << " Face-on Presets (for screenshots):\n";
-    std::cout << "   q           : Face-on XY slice (Z fixed)\n";
-    std::cout << "   w           : Face-on YZ slice (X fixed)\n";
-    std::cout << "   e           : Face-on ZX slice (Y fixed)\n\n";
+    std::cout << "   q           : Face-on XY slice (Z fixed, Coronal)\n";
+    std::cout << "   w           : Face-on YZ slice (X fixed, Sagittal)\n";
+    std::cout << "   e           : Face-on ZX slice (Y fixed, Axial)\n\n";
     std::cout << " Camera & View:\n";
     std::cout << "   i / k       : Camera move forward / backward\n";
     std::cout << "   j / l       : Camera move left / right\n";
@@ -339,10 +341,9 @@ static void RunSyntheticVerifications()
     float s0 = ramp.Sample(0.0f, 0.0f, 0.0f);
     float sMax = ramp.Sample(static_cast<float>(ramp.nx - 1), 0.0f, 0.0f);
     float sHalf = ramp.Sample(0.5f, 0.0f, 0.0f);
-    std::cout << "  Ramp check: Sample(0,0,0)=" << s0
-              << ", Sample(nx-1,0,0)=" << sMax
-              << ", Sample(0.5,0,0)=" << sHalf
-              << " (expected: 0, 1, " << (0.5f / (ramp.nx - 1)) << ")\n";
+    float sHalfExpected = 0.5f * ramp.At(1, 0, 0); // exact interpolation of stored uint8 voxels (0 and At(1,0,0))
+    std::printf("  Ramp check: Sample(0,0,0)=%.0f, Sample(nx-1,0,0)=%.0f, Sample(0.5,0,0)=%.8f (expected: 0, 1, %.8f)\n",
+                s0, sMax, sHalf, sHalfExpected);
 
     // 2. Colormap lookup check
     Colourmap cm;
@@ -445,9 +446,10 @@ static void RenderHUD()
             char buf[96];
             char axisChar = (axis == 0 ? 'X' : (axis == 1 ? 'Y' : 'Z'));
             int maxIndex = (axis == 0 ? gVolume.nx : (axis == 1 ? gVolume.ny : gVolume.nz)) - 1;
-            std::snprintf(buf, sizeof(buf), "%c Slice (%s / %s) : %d / %d [%s]",
+            std::snprintf(buf, sizeof(buf), "%c Slice (%s / %s / %s) : %d / %d [%s]",
                           axisChar,
                           PLANE_CONFIGS[axis].planeName,
+                          PLANE_CONFIGS[axis].anatomicalName,
                           PLANE_CONFIGS[axis].colorName,
                           SliceController.GetSliceIndex(a, gVolume),
                           maxIndex,
@@ -468,7 +470,6 @@ static void RenderHUD()
         glEnd();
         glLineWidth(1.0f);
 
-        const char* panelNames[3] = { "Sagittal", "Coronal", "Axial" };
         for (int axis = 0; axis < 3; ++axis) {
             SliceAxis a = static_cast<SliceAxis>(axis);
             float px = axis * panelW + 15.0f;
@@ -477,7 +478,7 @@ static void RenderHUD()
 
             char topBuf[96];
             std::snprintf(topBuf, sizeof(topBuf), "%s (%s / %s)",
-                          panelNames[axis], PLANE_CONFIGS[axis].planeName, PLANE_CONFIGS[axis].colorName);
+                          PLANE_CONFIGS[axis].anatomicalName, PLANE_CONFIGS[axis].planeName, PLANE_CONFIGS[axis].colorName);
             RenderText2D(px, WINDOW_HEIGHT - 75.0f, topBuf, PLANE_CONFIGS[axis].color);
 
             char bottomBuf[96];
@@ -522,6 +523,7 @@ static void DrawSliceQuadAndOutline(int axis, const Matrix4f& W, const Matrix4f&
 
     // Draw colored boundary outline if enabled
     if (ENABLE_PLANE_OUTLINES && PLANE_OUTLINE_WIDTH > 0.0f) {
+        glDepthFunc(GL_LEQUAL);
         glUseProgram(LineProg.id);
         glUniformMatrix4fv(LineProg.world, 1, GL_TRUE, &W.m[0][0]);
         glUniformMatrix4fv(LineProg.view, 1, GL_TRUE, &V.m[0][0]);
@@ -532,6 +534,7 @@ static void DrawSliceQuadAndOutline(int axis, const Matrix4f& W, const Matrix4f&
         glLineWidth(PLANE_OUTLINE_WIDTH);
         glDrawArrays(GL_LINE_LOOP, axis * 4, 4);
         glLineWidth(1.0f);
+        glDepthFunc(GL_LESS);
     }
 
     glBindVertexArray(0);
@@ -540,10 +543,8 @@ static void DrawSliceQuadAndOutline(int axis, const Matrix4f& W, const Matrix4f&
 
 // ── Rendering & GLUT Callbacks ───────────────────────────────────────────────
 
-static void RenderSceneCB()
+static void UpdateSlices()
 {
-    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-
     bool anyDirty = SliceController.IsDirty(SliceAxis::X) ||
                     SliceController.IsDirty(SliceAxis::Y) ||
                     SliceController.IsDirty(SliceAxis::Z);
@@ -577,6 +578,11 @@ static void RenderSceneCB()
             SliceController.ClearDirty(SliceAxis::Z);
         }
     }
+}
+
+static void DrawScene()
+{
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
     if (gViewMode == VIEW_3D_COMPOSITE) {
         glViewport(0, 0, static_cast<int>(WINDOW_WIDTH), static_cast<int>(WINDOW_HEIGHT));
@@ -606,6 +612,12 @@ static void RenderSceneCB()
         }
         glViewport(0, 0, static_cast<int>(WINDOW_WIDTH), static_cast<int>(WINDOW_HEIGHT));
     }
+}
+
+static void RenderSceneCB()
+{
+    UpdateSlices();
+    DrawScene();
 
     if (ENABLE_HUD_OVERLAY) {
         RenderHUD();
@@ -615,7 +627,6 @@ static void RenderSceneCB()
 
     // FPS calculation
     auto now = std::chrono::high_resolution_clock::now();
-    gFrameTimeMs = std::chrono::duration<float, std::milli>(now - gLastFrameTime).count();
     gLastFrameTime = now;
     gFpsFrameCount++;
 
@@ -633,9 +644,11 @@ static void RenderSceneCB()
 static void onReshape(int width, int height)
 {
     glViewport(0, 0, width, height);
+    WINDOW_WIDTH = static_cast<float>(width);
+    WINDOW_HEIGHT = static_cast<float>(height);
     if (!IsFullScreen) {
-        WINDOW_WIDTH = static_cast<float>(width);
-        WINDOW_HEIGHT = static_cast<float>(height);
+        WindowedWidth = width;
+        WindowedHeight = height;
     }
     ModelProject.SetViewportSize(static_cast<float>(width), static_cast<float>(height));
 }
@@ -644,32 +657,95 @@ static void RunBenchmark()
 {
     const int stepCount = BENCHMARK_STEP_COUNT;
     const char axisKey = BENCHMARK_AXIS;
-    std::cout << "\n[Benchmark] Running " << stepCount << " slice steps (axis " << axisKey << ") in "
+    std::cout << "\n======================================================\n";
+    std::cout << "[Benchmark] Running " << stepCount << " slice steps (axis " << axisKey << ") in "
               << (gUseGpuMode ? "GPU (3D Texture)" : "CPU (2D Slices)") << " mode...\n";
+    std::cout << "            (Isolated pipeline: VSync/SwapBuffers & HUD disabled)\n";
 
     // Warm-up and synchronization
     for (int i = 0; i < 5; ++i) {
         SliceController.HandleKey(axisKey, gVolume);
-        RenderSceneCB();
+        UpdateSlices();
+        DrawScene();
+        glutSwapBuffers();
     }
     glFinish();
 
-    auto start = std::chrono::high_resolution_clock::now();
+    // Timed run
+    double updateMs = 0.0;
+    double drawMs = 0.0;
+
+    auto startTotal = std::chrono::high_resolution_clock::now();
 
     for (int i = 0; i < stepCount; ++i) {
         SliceController.HandleKey(axisKey, gVolume);
-        RenderSceneCB();
+
+        auto t0 = std::chrono::high_resolution_clock::now();
+        UpdateSlices();
+        auto t1 = std::chrono::high_resolution_clock::now();
+        DrawScene();
+        glFinish();
+        auto t2 = std::chrono::high_resolution_clock::now();
+
+        updateMs += std::chrono::duration<double, std::milli>(t1 - t0).count();
+        drawMs += std::chrono::duration<double, std::milli>(t2 - t1).count();
+
+        // Swap buffers to display live visual animation across all steps
+        glutSwapBuffers();
     }
-    glFinish();
 
-    auto end = std::chrono::high_resolution_clock::now();
-    double totalMs = std::chrono::duration<double, std::milli>(end - start).count();
-    double avgMs = totalMs / stepCount;
-    double fps = 1000.0 / (avgMs > 0.001 ? avgMs : 0.001);
+    auto endTotal = std::chrono::high_resolution_clock::now();
+    double wallMs = std::chrono::duration<double, std::milli>(endTotal - startTotal).count();
+    double pureTotalMs = updateMs + drawMs;
+    double avgComputeMs = pureTotalMs / stepCount;
+    double avgUpdateMs = updateMs / stepCount;
+    double avgDrawMs = drawMs / stepCount;
+    double unthrottledFps = 1000.0 / (avgComputeMs > 0.0001 ? avgComputeMs : 0.0001);
 
-    std::printf("[Benchmark] %s: %d steps took %.2f ms (%.2f ms/step, ~%.1f FPS)\n\n",
-                gUseGpuMode ? "GPU (3D Tex)" : "CPU (2D Slices)",
-                stepCount, totalMs, avgMs, fps);
+    std::printf("[Benchmark] %s: %d steps animated in %.2f ms\n",
+                gUseGpuMode ? "GPU (3D Tex)" : "CPU (2D Slices)", stepCount, wallMs);
+    std::printf("  - Pure pipeline time (update + draw): %.3f ms/step (~%.1f unthrottled FPS)\n",
+                avgComputeMs, unthrottledFps);
+    std::printf("  - Slice update (compute+upload):      %.3f ms/step\n", avgUpdateMs);
+    std::printf("  - Draw time (glDrawElements+glFinish): %.3f ms/step\n", avgDrawMs);
+
+    // Profile single-slice CPU generation time for all 3 axes vs GPU VBO upload
+    std::cout << "\n[Benchmark Breakdown - Single Slice Generation & Upload]:\n";
+    {
+        for (int a = 0; a < 3; ++a) {
+            SliceAxis axis = static_cast<SliceAxis>(a);
+            char aChar = (a == 0 ? 'X' : (a == 1 ? 'Y' : 'Z'));
+            auto tGenStart = std::chrono::high_resolution_clock::now();
+            SliceImage img = SliceController.BuildSliceImage(gVolume, gColormap, axis);
+            auto tGenEnd = std::chrono::high_resolution_clock::now();
+
+            glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
+            glBindTexture(GL_TEXTURE_2D, SliceTextures[a]);
+            glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, img.width, img.height, 0,
+                         GL_RGBA, GL_UNSIGNED_BYTE, img.pixels.data());
+            glBindTexture(GL_TEXTURE_2D, 0);
+            glFinish();
+            auto tUploadEnd = std::chrono::high_resolution_clock::now();
+
+            double genMs = std::chrono::duration<double, std::milli>(tGenEnd - tGenStart).count();
+            double upMs = std::chrono::duration<double, std::milli>(tUploadEnd - tGenEnd).count();
+            std::printf("  CPU %c Slice (%dx%d): Gen = %.3f ms, 2D Tex Upload = %.3f ms (Total = %.3f ms)\n",
+                        aChar, img.width, img.height, genMs, upMs, genMs + upMs);
+        }
+
+        auto tVboStart = std::chrono::high_resolution_clock::now();
+        std::vector<QuadVertex> quadVerts = SliceController.BuildQuadVertices(gVolume);
+        glBindBuffer(GL_ARRAY_BUFFER, VBO);
+        glBufferSubData(GL_ARRAY_BUFFER, 0, quadVerts.size() * sizeof(QuadVertex), quadVerts.data());
+        glBindBuffer(GL_ARRAY_BUFFER, 0);
+        glFinish();
+        auto tVboEnd = std::chrono::high_resolution_clock::now();
+        double vboMs = std::chrono::duration<double, std::milli>(tVboEnd - tVboStart).count();
+        std::printf("  GPU Quad VBO Update: %.4f ms\n", vboMs);
+    }
+    std::cout << "======================================================\n\n";
+
+    SliceController.MarkAllDirty();
 }
 
 static void IdleCB()
@@ -761,21 +837,21 @@ static void KeyboardCB(unsigned char key, int mouse_x, int mouse_y)
         // Preset face-on views:
         case 'q':
         case 'Q':
-            ModelWorld.ResetTransform(); // XY slice face-on
+            ModelWorld.ResetTransform(); // XY slice face-on (Coronal)
             BENCHMARK_AXIS = 'Z';
             break;
 
         case 'w':
         case 'W':
             ModelWorld.ResetTransform();
-            ModelWorld.Rotate(0.0f, 90.0f, 0.0f); // YZ slice face-on
+            ModelWorld.Rotate(0.0f, 90.0f, 0.0f); // YZ slice face-on (Sagittal)
             BENCHMARK_AXIS = 'X';
             break;
 
         case 'e':
         case 'E':
             ModelWorld.ResetTransform();
-            ModelWorld.Rotate(90.0f, 0.0f, 0.0f); // ZX slice face-on
+            ModelWorld.Rotate(90.0f, 0.0f, 0.0f); // ZX slice face-on (Axial)
             BENCHMARK_AXIS = 'Y';
             break;
 
@@ -816,7 +892,7 @@ static void SpecialKeyboardCB(int key, int mouse_x, int mouse_y)
                 WindowPositionY = glutGet(GLUT_WINDOW_Y);
                 glutFullScreen();
             } else {
-                glutReshapeWindow(static_cast<int>(WINDOW_WIDTH), static_cast<int>(WINDOW_HEIGHT));
+                glutReshapeWindow(WindowedWidth, WindowedHeight);
                 glutPositionWindow(WindowPositionX, WindowPositionY);
             }
             break;
@@ -884,6 +960,7 @@ int main(int argc, char** argv)
     SliceController.SetPosition(SliceAxis::X, INITIAL_SLICE_POS_X);
     SliceController.SetPosition(SliceAxis::Y, INITIAL_SLICE_POS_Y);
     SliceController.SetPosition(SliceAxis::Z, INITIAL_SLICE_POS_Z);
+    SliceController.InitPositions(gVolume);
     SliceController.SetVisible(SliceAxis::X, INITIAL_SLICE_VISIBLE_X);
     SliceController.SetVisible(SliceAxis::Y, INITIAL_SLICE_VISIBLE_Y);
     SliceController.SetVisible(SliceAxis::Z, INITIAL_SLICE_VISIBLE_Z);
@@ -971,9 +1048,9 @@ int main(int argc, char** argv)
     for (int i = 0; i < 3; ++i) {
         PanelWorld[i].SetNormalization(centre, DEFAULT_SCALING_FACTOR / maxExtent);
     }
-    PanelWorld[0].Rotate(0.0f, 90.0f, 0.0f); // Panel 0 (YZ plane) face-on
-    PanelWorld[1].Rotate(90.0f, 0.0f, 0.0f); // Panel 1 (ZX plane) face-on
-    PanelWorld[2].ResetTransform();          // Panel 2 (XY plane) face-on
+    PanelWorld[0].Rotate(0.0f, 90.0f, 0.0f); // Panel 0 (YZ plane / Sagittal) face-on
+    PanelWorld[1].Rotate(90.0f, 0.0f, 0.0f); // Panel 1 (ZX plane / Axial) face-on
+    PanelWorld[2].ResetTransform();          // Panel 2 (XY plane / Coronal) face-on
 
     TiledView.SetPosition(DEFAULT_CAMERA_POS.x, DEFAULT_CAMERA_POS.y, DEFAULT_CAMERA_POS.z);
     TiledView.SetForward(DEFAULT_CAMERA_FORWARD.x, DEFAULT_CAMERA_FORWARD.y, DEFAULT_CAMERA_FORWARD.z);

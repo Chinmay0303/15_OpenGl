@@ -73,16 +73,17 @@ static const ColorPoint* GetGrayscalePoints(int& count) {
 }
 
 static const ColorPoint* GetViridisPoints(int& count) {
+    // Matplotlib Viridis exact control points (9-point perceptual scale)
     static const ColorPoint points[] = {
-        { 0.000f, Vector3f(0.267f, 0.004f, 0.329f) },
-        { 0.125f, Vector3f(0.282f, 0.165f, 0.467f) },
-        { 0.250f, Vector3f(0.191f, 0.407f, 0.556f) },
-        { 0.375f, Vector3f(0.122f, 0.533f, 0.537f) },
-        { 0.500f, Vector3f(0.128f, 0.567f, 0.551f) },
-        { 0.625f, Vector3f(0.208f, 0.718f, 0.473f) },
-        { 0.750f, Vector3f(0.369f, 0.789f, 0.383f) },
-        { 0.875f, Vector3f(0.682f, 0.812f, 0.208f) },
-        { 1.000f, Vector3f(0.993f, 0.906f, 0.144f) }
+        { 0.000f, Vector3f(0.266667f, 0.003922f, 0.329412f) }, // #440154
+        { 0.125f, Vector3f(0.278431f, 0.176471f, 0.482353f) }, // #472D7B
+        { 0.250f, Vector3f(0.231373f, 0.321569f, 0.545098f) }, // #3B528B
+        { 0.375f, Vector3f(0.172549f, 0.447059f, 0.556863f) }, // #2C728E
+        { 0.500f, Vector3f(0.129412f, 0.568627f, 0.549020f) }, // #21918C
+        { 0.625f, Vector3f(0.156863f, 0.682353f, 0.501961f) }, // #28AE80
+        { 0.750f, Vector3f(0.368627f, 0.788235f, 0.384314f) }, // #5EC962
+        { 0.875f, Vector3f(0.678431f, 0.862745f, 0.188235f) }, // #ADDC30
+        { 1.000f, Vector3f(0.992157f, 0.905882f, 0.145098f) }  // #FDE725
     };
     count = static_cast<int>(sizeof(points) / sizeof(points[0]));
     return points;
@@ -178,18 +179,24 @@ Vector3f Colourmap::Lookup(float s) const
     return LerpColor(table_[idx0], table_[idx1], frac);
 }
 
-unsigned int Colourmap::CreateGLTexture1D() const
+std::vector<unsigned char> Colourmap::GetRGBA8Data() const
 {
     std::vector<unsigned char> rgba(ColormapSize * 4);
     for (int i = 0; i < ColormapSize; ++i) {
-        float r = std::max(0.0f, std::min(1.0f, table_[i].x));
-        float g = std::max(0.0f, std::min(1.0f, table_[i].y));
-        float b = std::max(0.0f, std::min(1.0f, table_[i].z));
+        float r = std::clamp(table_[i].x, 0.0f, 1.0f);
+        float g = std::clamp(table_[i].y, 0.0f, 1.0f);
+        float b = std::clamp(table_[i].z, 0.0f, 1.0f);
         rgba[i * 4 + 0] = static_cast<unsigned char>(std::round(r * 255.0f));
         rgba[i * 4 + 1] = static_cast<unsigned char>(std::round(g * 255.0f));
         rgba[i * 4 + 2] = static_cast<unsigned char>(std::round(b * 255.0f));
         rgba[i * 4 + 3] = 255;
     }
+    return rgba;
+}
+
+unsigned int Colourmap::CreateGLTexture1D() const
+{
+    std::vector<unsigned char> rgba = GetRGBA8Data();
 
     GLuint tex = 0;
     glGenTextures(1, &tex);
@@ -211,16 +218,7 @@ void Colourmap::UpdateGLTexture1D(unsigned int textureId) const
 {
     if (textureId == 0) return;
 
-    std::vector<unsigned char> rgba(ColormapSize * 4);
-    for (int i = 0; i < ColormapSize; ++i) {
-        float r = std::clamp(table_[i].x, 0.0f, 1.0f);
-        float g = std::clamp(table_[i].y, 0.0f, 1.0f);
-        float b = std::clamp(table_[i].z, 0.0f, 1.0f);
-        rgba[i * 4 + 0] = static_cast<unsigned char>(std::round(r * 255.0f));
-        rgba[i * 4 + 1] = static_cast<unsigned char>(std::round(g * 255.0f));
-        rgba[i * 4 + 2] = static_cast<unsigned char>(std::round(b * 255.0f));
-        rgba[i * 4 + 3] = 255;
-    }
+    std::vector<unsigned char> rgba = GetRGBA8Data();
 
     glBindTexture(GL_TEXTURE_1D, textureId);
     glPixelStorei(GL_UNPACK_ALIGNMENT, 1);

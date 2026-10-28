@@ -2,7 +2,6 @@
 
 #include <cmath>
 #include <algorithm>
-#include <iostream>
 
 Slicing::Slicing()
 {
@@ -19,11 +18,26 @@ Slicing::Slicing()
     dirty[2] = true;
 }
 
+void Slicing::InitPositions(const Volume& volume)
+{
+    auto calcT = [](int n, float initPos) {
+        if (n <= 1) return 0.0f;
+        int idx = std::clamp(static_cast<int>(std::round(initPos * (n - 1))), 0, n - 1);
+        return static_cast<float>(idx) / static_cast<float>(n - 1);
+    };
+    position[0] = calcT(volume.nx, position[0]);
+    position[1] = calcT(volume.ny, position[1]);
+    position[2] = calcT(volume.nz, position[2]);
+    MarkAllDirty();
+}
+
 bool Slicing::HandleKey(unsigned char key, const Volume& volume)
 {
     auto stepAxis = [&](int axis, int n, int direction) {
-        float step = (n > 1) ? static_cast<float>(direction * stepVoxels) / (n - 1) : 0.0f;
-        position[axis] = std::clamp(position[axis] + step, 0.0f, 1.0f);
+        if (n <= 1) return true;
+        int curIdx = GetSliceIndex(static_cast<SliceAxis>(axis), volume);
+        int nextIdx = std::clamp(curIdx + direction * stepVoxels, 0, n - 1);
+        position[axis] = static_cast<float>(nextIdx) / static_cast<float>(n - 1);
         dirty[axis] = true;
         return true;
     };
@@ -63,6 +77,15 @@ void Slicing::SetPosition(SliceAxis axis, float t)
     dirty[static_cast<int>(axis)] = true;
 }
 
+void Slicing::SetSliceIndex(SliceAxis axis, int index, const Volume& volume)
+{
+    int idx = static_cast<int>(axis);
+    int n = (idx == 0) ? volume.nx : ((idx == 1) ? volume.ny : volume.nz);
+    int clamped = (n > 1) ? std::clamp(index, 0, n - 1) : 0;
+    position[idx] = (n > 1) ? static_cast<float>(clamped) / static_cast<float>(n - 1) : 0.0f;
+    dirty[idx] = true;
+}
+
 bool Slicing::IsVisible(SliceAxis axis) const
 {
     return visible[static_cast<int>(axis)];
@@ -91,20 +114,20 @@ SliceImage Slicing::BuildSliceImage(const Volume& volume, const Colourmap& color
     float fixedCoord = 0.0f;
 
     switch (axis) {
-        case SliceAxis::X: // YZ plane: fixed x, u=y, v=z
+        case SliceAxis::X: // YZ plane (Sagittal): fixed x, u=y, v=z
             img.width = volume.ny;
             img.height = volume.nz;
-            fixedCoord = position[0] * (volume.nx - 1.0f);
+            fixedCoord = static_cast<float>(GetSliceIndex(SliceAxis::X, volume));
             break;
-        case SliceAxis::Y: // ZX plane: fixed y, u=z, v=x
+        case SliceAxis::Y: // ZX plane (Axial): fixed y, u=z, v=x
             img.width = volume.nz;
             img.height = volume.nx;
-            fixedCoord = position[1] * (volume.ny - 1.0f);
+            fixedCoord = static_cast<float>(GetSliceIndex(SliceAxis::Y, volume));
             break;
-        case SliceAxis::Z: // XY plane: fixed z, u=x, v=y
+        case SliceAxis::Z: // XY plane (Coronal): fixed z, u=x, v=y
             img.width = volume.nx;
             img.height = volume.ny;
-            fixedCoord = position[2] * (volume.nz - 1.0f);
+            fixedCoord = static_cast<float>(GetSliceIndex(SliceAxis::Z, volume));
             break;
     }
 
@@ -159,7 +182,7 @@ std::vector<QuadVertex> Slicing::BuildQuadVertices(const Volume& volume) const
         };
     };
 
-    // Quad X (YZ plane, x fixed): in-plane axes y (u) and z (v)
+    // Quad X (YZ plane / Sagittal, x fixed): in-plane axes y (u) and z (v)
     {
         int w = volume.ny;
         int h = volume.nz;
@@ -177,7 +200,7 @@ std::vector<QuadVertex> Slicing::BuildQuadVertices(const Volume& volume) const
         vertices[3] = makeVertex(Vector3f(x, 0.0f, Ez),   u0, v1);
     }
 
-    // Quad Y (ZX plane, y fixed): in-plane axes z (u) and x (v)
+    // Quad Y (ZX plane / Axial, y fixed): in-plane axes z (u) and x (v)
     {
         int w = volume.nz;
         int h = volume.nx;
@@ -195,7 +218,7 @@ std::vector<QuadVertex> Slicing::BuildQuadVertices(const Volume& volume) const
         vertices[7] = makeVertex(Vector3f(Ex,   y, 0.0f), u0, v1);
     }
 
-    // Quad Z (XY plane, z fixed): in-plane axes x (u) and y (v)
+    // Quad Z (XY plane / Coronal, z fixed): in-plane axes x (u) and y (v)
     {
         int w = volume.nx;
         int h = volume.ny;

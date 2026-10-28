@@ -27,6 +27,7 @@ public:
 
     unsigned int CreateGLTexture1D() const;
     void UpdateGLTexture1D(unsigned int textureId) const;
+    std::vector<unsigned char> GetRGBA8Data() const;
 
 private:
     void Rebuild();

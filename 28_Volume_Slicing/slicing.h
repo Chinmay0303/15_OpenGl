@@ -7,9 +7,9 @@
 #include "colourmap.h"
 
 // Mapping:
-// X = YZ plane (x fixed)
-// Y = ZX plane (y fixed)
-// Z = XY plane (z fixed)
+// X = YZ plane (x fixed, Sagittal: divides Left / Right)
+// Y = ZX plane (y fixed, Axial: divides Top / Bottom)
+// Z = XY plane (z fixed, Coronal: divides Front / Back)
 enum class SliceAxis {
     X = 0,
     Y = 1,
@@ -50,6 +50,8 @@ public:
     void SetStepVoxels(int s) { stepVoxels = (s > 0) ? s : 1; }
 
     int GetSliceIndex(SliceAxis axis, const Volume& volume) const;
+    void SetSliceIndex(SliceAxis axis, int index, const Volume& volume);
+    void InitPositions(const Volume& volume);
 
     SliceImage BuildSliceImage(const Volume& volume, const Colourmap& colormap, SliceAxis axis) const;
     std::vector<QuadVertex> BuildQuadVertices(const Volume& volume) const;

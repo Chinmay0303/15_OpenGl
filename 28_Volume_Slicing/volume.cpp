@@ -52,7 +52,7 @@ bool Volume::LoadRaw(const std::string& path,
 
         float invRange = (maxVal > minVal) ? 255.0f / static_cast<float>(maxVal - minVal) : 0.0f;
         for (std::size_t i = 0; i < numVoxels; ++i) {
-            data_[i] = static_cast<unsigned char>((temp[i] - minVal) * invRange);
+            data_[i] = static_cast<unsigned char>((temp[i] - minVal) * invRange + 0.5f);
         }
 
         std::cout << "[Volume] loaded uint16 " << path << " (" << nx << "x" << ny << "x" << nz
@@ -73,7 +73,7 @@ bool Volume::LoadRaw(const std::string& path,
         if (minVal < maxVal && (minVal > 0 || maxVal < 255)) {
             float invRange = 255.0f / static_cast<float>(maxVal - minVal);
             for (std::size_t i = 0; i < numVoxels; ++i) {
-                data_[i] = static_cast<unsigned char>((data_[i] - minVal) * invRange);
+                data_[i] = static_cast<unsigned char>((data_[i] - minVal) * invRange + 0.5f);
             }
             std::cout << "[Volume] Normalized dynamic range [" << static_cast<int>(minVal)
                       << ", " << static_cast<int>(maxVal) << "] -> [0, 255]\n";
